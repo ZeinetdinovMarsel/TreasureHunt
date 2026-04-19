@@ -1,0 +1,7 @@
+GameScene filter=lfs diff=lfs merge=lfs -text
+Assets/Scenes/GameScene filter=lfs diff=lfs merge=lfs -text
+Assets/Scenes/GameScene/GameScene[[:space:]]Baking[[:space:]]Set.CellSupportData.bytes filter=lfs diff=lfs merge=lfs -text
+Assets/Scenes/GameScene/** filter=lfs diff=lfs merge=lfs -text
+Assets/Scenes/GameScene/* filter=lfs diff=lfs merge=lfs -text
+Assets/Scenes/GameScene/*.bytes filter=lfs diff=lfs merge=lfs -text
+Assets/Scenes/GameScene/*.asset filter=lfs diff=lfs merge=lfs -text
