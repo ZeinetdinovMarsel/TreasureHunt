@@ -50,7 +50,11 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919336307104938847, guid: 0deb7381be86e4f44ae2ffe30be5aae9, type: 3}
       propertyPath: m_Name
-      value: GoldChest Variant
+      value: GoldenChest Variant
+      objectReference: {fileID: 0}
+    - target: {fileID: 919336307104938847, guid: 0deb7381be86e4f44ae2ffe30be5aae9, type: 3}
+      propertyPath: m_TagString
+      value: Treasure
       objectReference: {fileID: 0}
     - target: {fileID: 4853151146915991446, guid: 0deb7381be86e4f44ae2ffe30be5aae9, type: 3}
       propertyPath: m_LocalScale.x
@@ -68,8 +72,56 @@ PrefabInstance:
       propertyPath: m_LocalPosition.y
       value: 0.169
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: 459697254, guid: 0deb7381be86e4f44ae2ffe30be5aae9, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents: []
+    m_AddedComponents:
+    - targetCorrespondingSourceObject: {fileID: 919336307104938847, guid: 0deb7381be86e4f44ae2ffe30be5aae9, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -9038132255656542951}
+    - targetCorrespondingSourceObject: {fileID: 919336307104938847, guid: 0deb7381be86e4f44ae2ffe30be5aae9, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: -1006306737577945311}
   m_SourcePrefab: {fileID: 100100000, guid: 0deb7381be86e4f44ae2ffe30be5aae9, type: 3}
+--- !u!1 &5717952553726126841 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 919336307104938847, guid: 0deb7381be86e4f44ae2ffe30be5aae9, type: 3}
+  m_PrefabInstance: {fileID: 4870673840930935206}
+  m_PrefabAsset: {fileID: 0}
+--- !u!65 &-9038132255656542951
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5717952553726126841}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 0.8848545, y: 0.806934, z: 0.6855958}
+  m_Center: {x: -0.0000005497917, y: 0.3803192, z: -0.01475589}
+--- !u!114 &-1006306737577945311
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5717952553726126841}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2fb787a1a1623104cbfbe5602fc950db, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::WorldItem
+  _itemData: {fileID: 11400000, guid: 09cf814a988ea764e97013112e717307, type: 2}
+  _collider: {fileID: 0}
+  _mainObject: {fileID: 0}

@@ -9,9 +9,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: b391004238c7625478fa352aa9755c9b, type: 3}
+  m_Script: {fileID: 11500000, guid: d8a39c8f94b96e543a0e32a512c30434, type: 3}
   m_Name: CoinSet
   m_EditorClassIdentifier: Assembly-CSharp::TreasureData
-  <Cost>k__BackingField: 15
-  <Weight>k__BackingField: 5
+  <Weight>k__BackingField: 80
   <Prefab>k__BackingField: {fileID: 6215233058091231198, guid: 31962dbf6f0db6845af82c4290c03c2d, type: 3}
+  <Cost>k__BackingField: 50

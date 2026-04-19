@@ -1,9 +1,6 @@
 using UnityEngine;
-
-[CreateAssetMenu(fileName = "TreasureData", menuName = "Treasures/TreasureData")]
-public class TreasureData : ScriptableObject
+[CreateAssetMenu(fileName = "TreasureData", menuName = "Items/TreasureData")]
+public class TreasureData : ItemData
 {
     [field: SerializeField] public float Cost { get; private set; }
-    [field: SerializeField] public float Weight { get; private set; }
-    [field: SerializeField] public GameObject Prefab { get; private set; }
 }

@@ -1,0 +1,173 @@
+using Cysharp.Threading.Tasks;
+using PrimeTween;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using UniRx;
+using UnityEngine;
+using UnityEngine.AI;
+using Zenject;
+
+[RequireComponent(typeof(NavMeshAgent))]
+public class EnemyAI : MonoBehaviour
+{
+    private enum State { Patrolling, Chasing, Attacking }
+
+    [SerializeField] private List<Transform> _wayPoints;
+    [SerializeField] private EnemySettings _settings;
+
+    private NavMeshAgent _agent;
+    private IStunnable _currentTarget;
+    private CompositeDisposable _disposables = new();
+    private CancellationTokenSource _attackCts;
+
+    private ReactiveProperty<State> _currentState = new(State.Patrolling);
+    private int _currentWayPointIndex;
+    private bool _isAttacking;
+
+    private readonly Collider[] _detectionBuffer = new Collider[5];
+
+    private void Awake()
+    {
+        _agent = GetComponent<NavMeshAgent>();
+        _attackCts = new CancellationTokenSource();
+    }
+
+    private void Start()
+    {
+        _agent.speed = _settings.PatrolSpeed;
+
+        Observable.EveryFixedUpdate()
+            .Subscribe(_ => Tick())
+            .AddTo(_disposables);
+
+        _currentState.Subscribe(OnStateChanged).AddTo(_disposables);
+    }
+
+    private void Tick()
+    {
+        if (_isAttacking) return;
+
+        SearchForTargets();
+
+        switch (_currentState.Value)
+        {
+            case State.Patrolling:
+                UpdatePatrol();
+                if (_currentTarget != null)
+                    _currentState.Value = State.Chasing;
+                break;
+
+            case State.Chasing:
+                UpdateChase();
+                break;
+        }
+    }
+
+    private void SearchForTargets()
+    {
+        int count = Physics.OverlapSphereNonAlloc(transform.position, _settings.DetectionRange, _detectionBuffer, _settings.TargetLayer);
+
+        IStunnable bestTarget = null;
+        float minDistance = float.MaxValue;
+
+        for (int i = 0; i < count; i++)
+        {
+            Transform targetTrans = _detectionBuffer[i].transform;
+            Vector3 directionToTarget = (targetTrans.position - transform.position).normalized;
+            float distance = Vector3.Distance(transform.position, targetTrans.position);
+
+            if (Vector3.Angle(transform.forward, directionToTarget) < _settings.ViewAngle / 2f)
+            {
+                if (!Physics.Raycast(transform.position + Vector3.up, directionToTarget, distance, _settings.ObstacleLayer))
+                {
+                    if (distance < minDistance)
+                    {
+                        minDistance = distance;
+                        bestTarget = targetTrans.GetComponent<IStunnable>();
+                    }
+                }
+            }
+        }
+
+        _currentTarget = bestTarget;
+    }
+
+    private void UpdateChase()
+    {
+        if (_currentTarget == null || Vector3.Distance(transform.position, GetTargetPos()) > _settings.StopChaseRange)
+        {
+            _currentState.Value = State.Patrolling;
+            _currentTarget = null;
+            return;
+        }
+
+        float distance = Vector3.Distance(transform.position, GetTargetPos());
+        _agent.SetDestination(GetTargetPos());
+
+        if (distance <= _settings.AttackRange)
+        {
+            AttackSequenceAsync().Forget();
+        }
+    }
+
+    private Vector3 GetTargetPos() => ((MonoBehaviour)_currentTarget).transform.position;
+
+    private async UniTaskVoid AttackSequenceAsync()
+    {
+        if (_currentTarget == null) return;
+
+        _isAttacking = true;
+        _agent.isStopped = true;
+
+        transform.LookAt(GetTargetPos());
+
+        if (_currentTarget != null)
+        {
+            _currentTarget.ApplyStunAsync(_settings.StunDuration, _attackCts.Token).Forget();
+        }
+
+        await UniTask.Delay(TimeSpan.FromSeconds(_settings.AttackCooldown), cancellationToken: _attackCts.Token);
+
+        _agent.isStopped = false;
+        _isAttacking = false;
+    }
+
+    private void UpdatePatrol()
+    {
+        if (_wayPoints.Count == 0) return;
+        _agent.SetDestination(_wayPoints[_currentWayPointIndex].position);
+
+        if (!_agent.pathPending && _agent.remainingDistance <= _agent.stoppingDistance)
+        {
+            _currentWayPointIndex = (_currentWayPointIndex + 1) % _wayPoints.Count;
+        }
+    }
+
+    private void OnStateChanged(State newState)
+    {
+        _agent.speed = (newState == State.Chasing) ? _settings.ChaseSpeed : _settings.PatrolSpeed;
+    }
+
+    private void OnDestroy()
+    {
+        _disposables.Dispose();
+        _attackCts?.Cancel();
+        _attackCts?.Dispose();
+    }
+
+#if UNITY_EDITOR
+    private void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireSphere(transform.position, _settings.DetectionRange);
+
+        Gizmos.color = Color.red;
+        Vector3 leftBoundary = Quaternion.Euler(0, -_settings.ViewAngle / 2f, 0) * transform.forward;
+        Vector3 rightBoundary = Quaternion.Euler(0, _settings.ViewAngle / 2f, 0) * transform.forward;
+        Gizmos.DrawRay(transform.position, leftBoundary * _settings.DetectionRange);
+        Gizmos.DrawRay(transform.position, rightBoundary * _settings.DetectionRange);
+    }
+#endif
+}

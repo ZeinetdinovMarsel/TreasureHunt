@@ -8,6 +8,7 @@ public class TreasureGenerator : MonoBehaviour
     [Range(0f, 1f)][SerializeField] private float _jitter = 0.8f;
 
     [SerializeField] private TreasureToSpawn[] _treasuresToSpawn;
+    [SerializeField] private Transform _container;
 
     private void Start()
     {
@@ -64,7 +65,7 @@ public class TreasureGenerator : MonoBehaviour
                 float height = _terrain.SampleHeight(spawnPos);
                 spawnPos.y = _terrain.transform.position.y + height;
 
-                Instantiate(prefabsToSpawn[spawnedCount], spawnPos, Quaternion.Euler(0, Random.Range(0, 360), 0));
+                Instantiate(prefabsToSpawn[spawnedCount], spawnPos, Quaternion.Euler(0, Random.Range(0, 360), 0), _container);
 
                 spawnedCount++;
             }
@@ -82,9 +83,9 @@ public class TreasureGenerator : MonoBehaviour
 
 public class TreasureToSpawn
 {
-    [SerializeField] private TreasureData _treasureData;
+    [SerializeField] private ItemData _treasureData;
     [SerializeField] private int _spawnCount;
 
-    public TreasureData TreasureData => _treasureData;
+    public ItemData TreasureData => _treasureData;
     public int SpawnCount => _spawnCount;
 }
