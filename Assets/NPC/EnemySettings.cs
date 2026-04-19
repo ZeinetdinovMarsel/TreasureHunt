@@ -13,6 +13,7 @@ public class EnemySettings
 
     [field: SerializeField] public float StunDuration { get; private set; } = 3f;
     [field: SerializeField] public float AttackCooldown { get; private set; } = 2f;
+    [field: SerializeField] public float ForgetTargetDuration { get; private set; } = 5f;
 
 
     [field: SerializeField] public LayerMask TargetLayer { get; private set; }

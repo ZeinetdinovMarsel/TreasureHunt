@@ -5,6 +5,8 @@ public class TeamBase : MonoBehaviour
 {
     [SerializeField] private Transform[] _spawnPoints;
     [SerializeField] private GameObject _agentPrefab;
+
+    [SerializeField] private float _money;
     [Inject] DiContainer _diContainer;
     private void Awake()
     {
@@ -15,6 +17,22 @@ public class TeamBase : MonoBehaviour
             if (Physics.Raycast(spawnPoint.position, Vector3.down, out var hit, Mathf.Infinity))
             {
                 agent.transform.position = hit.point;
+            }
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Treasure"))
+        {
+            if(other.TryGetComponent<WorldItem>(out var worldItem) && !worldItem.IsPicked)
+            {
+                var item = worldItem.ItemData as TreasureData;
+                if (item != null)
+                {
+                    _money += item.Cost;
+                    Destroy(worldItem.MainObject);
+                }
             }
         }
     }

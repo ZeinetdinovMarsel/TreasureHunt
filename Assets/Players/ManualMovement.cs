@@ -58,8 +58,8 @@ public class AgentManualMovementController : MonoBehaviour
 
         Vector3 movementDirection = CalculateCameraRelativeMovement();
 
-        _agentBehaviour.SafeMove(movementDirection * _agent.speed * Time.deltaTime);
-        ApplyRotation(movementDirection);
+        _agentBehaviour.SafeMove(movementDirection * Time.deltaTime);
+        //ApplyRotation(movementDirection);
     }
 
     private Vector3 CalculateCameraRelativeMovement()

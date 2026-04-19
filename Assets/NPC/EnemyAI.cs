@@ -16,6 +16,7 @@ public class EnemyAI : MonoBehaviour
 
     [SerializeField] private List<Transform> _wayPoints;
     [SerializeField] private EnemySettings _settings;
+    public EnemySettings Settings => _settings;
 
     private NavMeshAgent _agent;
     private IStunnable _currentTarget;
@@ -28,6 +29,12 @@ public class EnemyAI : MonoBehaviour
 
     private readonly Collider[] _detectionBuffer = new Collider[5];
 
+    public IObservable<Unit> OnAttack => _onAttack;
+    private Subject<Unit> _onAttack = new();
+    private EnemyAnimationBehaviour _anim;
+
+    private CancellationTokenSource _forgetCts;
+    private bool _isForgetting;
     private void Awake()
     {
         _agent = GetComponent<NavMeshAgent>();
@@ -37,7 +44,10 @@ public class EnemyAI : MonoBehaviour
     private void Start()
     {
         _agent.speed = _settings.PatrolSpeed;
-
+        _anim = GetComponent<EnemyAnimationBehaviour>();
+        _anim.OnAttackHit
+           .Subscribe(_ => ApplyDamage())
+           .AddTo(_disposables);
         Observable.EveryFixedUpdate()
             .Subscribe(_ => Tick())
             .AddTo(_disposables);
@@ -49,7 +59,10 @@ public class EnemyAI : MonoBehaviour
     {
         if (_isAttacking) return;
 
-        SearchForTargets();
+        if (!_isForgetting)
+        {
+            SearchForTargets();
+        }
 
         switch (_currentState.Value)
         {
@@ -114,6 +127,39 @@ public class EnemyAI : MonoBehaviour
 
     private Vector3 GetTargetPos() => ((MonoBehaviour)_currentTarget).transform.position;
 
+
+    private void ApplyDamage()
+    {
+        if (_currentTarget == null) return;
+
+        _currentTarget
+            .ApplyStunAsync(_settings.StunDuration, _attackCts.Token)
+            .Forget();
+
+        StartForgetTargetAsync().Forget();
+    }
+    private async UniTaskVoid StartForgetTargetAsync()
+    {
+        _forgetCts?.Cancel();
+        _forgetCts?.Dispose();
+        _forgetCts = new CancellationTokenSource();
+
+        _isForgetting = true;
+
+        _currentTarget = null;
+        _currentState.Value = State.Patrolling;
+
+        try
+        {
+            await UniTask.Delay(
+                TimeSpan.FromSeconds(_settings.ForgetTargetDuration),
+                cancellationToken: _forgetCts.Token
+            );
+        }
+        catch (OperationCanceledException) { }
+
+        _isForgetting = false;
+    }
     private async UniTaskVoid AttackSequenceAsync()
     {
         if (_currentTarget == null) return;
@@ -123,10 +169,7 @@ public class EnemyAI : MonoBehaviour
 
         transform.LookAt(GetTargetPos());
 
-        if (_currentTarget != null)
-        {
-            _currentTarget.ApplyStunAsync(_settings.StunDuration, _attackCts.Token).Forget();
-        }
+        _onAttack.OnNext(Unit.Default);
 
         await UniTask.Delay(TimeSpan.FromSeconds(_settings.AttackCooldown), cancellationToken: _attackCts.Token);
 
@@ -153,8 +196,12 @@ public class EnemyAI : MonoBehaviour
     private void OnDestroy()
     {
         _disposables.Dispose();
+
         _attackCts?.Cancel();
         _attackCts?.Dispose();
+
+        _forgetCts?.Cancel();
+        _forgetCts?.Dispose();
     }
 
 #if UNITY_EDITOR

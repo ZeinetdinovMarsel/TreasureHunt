@@ -4,6 +4,7 @@ using System.Threading;
 using UniRx;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Events;
 using Zenject;
 
 public class AgentBehaviour : MonoBehaviour, IStunnable
@@ -13,7 +14,18 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
 
     [SerializeField] private WorldItem _worldItem;
     [SerializeField] private float _maxSpeed = 5;
-    [SerializeField] private float _looseSpeedPercent=0.05f;
+    [SerializeField] private float _looseSpeedPercent = 0.05f;
+
+    [SerializeField] private LayerMask _agentsLayerMask;
+    [SerializeField] private bool _stealAbilityReady;
+    [SerializeField] private float _stealRadius;
+    public CartBehaviour CartBeh => _cartBeh;
+    public float MaxSpeed => _maxSpeed;
+
+
+    private readonly ReactiveProperty<bool> _isStunned = new(false);
+    public UniRx.IReadOnlyReactiveProperty<bool> IsStunned => _isStunned;
+
 
     [Inject]
     private void Construct()
@@ -27,7 +39,7 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
     public void SafeMove(Vector3 offset)
     {
         if (_isStunned.Value) return;
-        _agent.Move(offset);
+        _agent.SetDestination(_agent.transform.position + offset * 100);
     }
 
     public void SafeSetDestination(Vector3 target)
@@ -52,7 +64,6 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
     {
         if (_worldItem != null && !_worldItem.IsPicked)
         {
-            _worldItem.IsPicked = true;
             _cartBeh.SetObjectOnCart(_worldItem.ItemData, _worldItem);
         }
     }
@@ -60,6 +71,27 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
     public void DropItem()
     {
         _cartBeh.ThrowObjectBack();
+        _worldItem = null;
+    }
+
+    public void StealItem()
+    {
+        if (_stealAbilityReady)
+        {
+            var agentObjects = Physics.OverlapSphere(transform.position + Vector3.up, _stealRadius, _agentsLayerMask);
+
+            foreach (var agentObject in agentObjects)
+            {
+                if (agentObject.TryGetComponent<AgentBehaviour>(out var agent))
+                {
+                    var stealObject = agent.CartBeh.RemoveObjectFromCart();
+                    if (stealObject != null)
+                    {
+                        _cartBeh.SetObjectOnCart(_worldItem.ItemData, _worldItem);
+                    }
+                }
+            }
+        }
     }
 
     private void OnTriggerEnter(Collider other)
@@ -84,18 +116,15 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
         }
     }
 
-    private readonly ReactiveProperty<bool> _isStunned = new(false);
-    public IReadOnlyReactiveProperty<bool> IsStunned => _isStunned;
-
     public async UniTask ApplyStunAsync(float duration, CancellationToken token)
     {
         if (_isStunned.Value) return;
 
         _isStunned.Value = true;
-
         _agent.isStopped = true;
         _agent.velocity = Vector3.zero;
         _agent.ResetPath();
+        _cartBeh.ThrowObjectBack();
 
         try
         {
