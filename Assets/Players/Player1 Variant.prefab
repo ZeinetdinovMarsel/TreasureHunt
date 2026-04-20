@@ -1272,6 +1272,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::AgentBehaviour
   _worldItem: {fileID: 0}
   _maxSpeed: 5
+  _looseWeightStep: 10
   _looseSpeedPercent: 0.05
   _chargePerStep: 0.02
   _stepDelaySec: 1
@@ -1282,6 +1283,8 @@ MonoBehaviour:
     m_Bits: 128
   _stealAbilityPower:
     value: 0
+  _agentId: 
+  _teamId: 
 --- !u!114 &2017912096224707206
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1301,7 +1304,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5613935651759276162}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 221737bd2b8a6804db7f0308f51f0121, type: 3}
   m_Name: 

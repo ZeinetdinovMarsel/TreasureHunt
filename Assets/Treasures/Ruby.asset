@@ -14,4 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::TreasureData
   <Weight>k__BackingField: 120
   <Prefab>k__BackingField: {fileID: 5111919548294418829, guid: 7a42c400862127847966276984b2ca26, type: 3}
-  <Cost>k__BackingField: 60
+  <Cost>k__BackingField: 50

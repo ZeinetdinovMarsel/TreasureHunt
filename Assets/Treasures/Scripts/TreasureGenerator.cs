@@ -2,98 +2,30 @@ using System.Collections.Generic;
 using UniRx;
 using UniRx.Triggers;
 using UnityEngine;
-
-public class TreasureGenerator : MonoBehaviour
+public class TreasureGenerator : GridSpawnerBase<TreasureToSpawn>
 {
-    [SerializeField] private Terrain _terrain;
-    [SerializeField] private Vector2 _areaSize = new Vector2(100f, 100f);
-    [Range(0f, 1f)][SerializeField] private float _jitter = 0.8f;
+    [SerializeField] private TreasureToSpawn[] _treasures;
 
-    [SerializeField] private TreasureToSpawn[] _treasuresToSpawn;
-    [SerializeField] private Transform _container;
-
-    [SerializeField] private ReactiveCollection<GameObject> _treasures = new ReactiveCollection<GameObject>();
-    public IReadOnlyReactiveCollection<GameObject> Treasures => _treasures;
-    private void Start()
+    protected override IEnumerable<TreasureToSpawn> GetSpawnData()
     {
-        if (_terrain == null) _terrain = Terrain.activeTerrain;
-
-        GenerateTreasuresUniformly();
-    }
-
-    private void GenerateTreasuresUniformly()
-    {
-        List<GameObject> prefabsToSpawn = new List<GameObject>();
-        foreach (var t in _treasuresToSpawn)
-        {
+        foreach (var t in _treasures)
             for (int i = 0; i < t.SpawnCount; i++)
-            {
-                prefabsToSpawn.Add(t.TreasureData.Prefab);
-            }
-        }
-
-        int totalCount = prefabsToSpawn.Count;
-        if (totalCount == 0) return;
-
-        for (int i = 0; i < totalCount; i++)
-        {
-            GameObject temp = prefabsToSpawn[i];
-            int randomIndex = Random.Range(i, totalCount);
-            prefabsToSpawn[i] = prefabsToSpawn[randomIndex];
-            prefabsToSpawn[randomIndex] = temp;
-        }
-
-        float aspect = _areaSize.x / _areaSize.y;
-        int columns = Mathf.CeilToInt(Mathf.Sqrt(totalCount * aspect));
-        int rows = Mathf.CeilToInt((float)totalCount / columns);
-
-        float cellSizeX = _areaSize.x / columns;
-        float cellSizeZ = _areaSize.y / rows;
-
-        int spawnedCount = 0;
-
-        for (int z = 0; z < rows; z++)
-        {
-            for (int x = 0; x < columns; x++)
-            {
-                if (spawnedCount >= totalCount) break;
-
-                float posX = (x * cellSizeX) + (cellSizeX / 2f) - (_areaSize.x / 2f);
-                float posZ = (z * cellSizeZ) + (cellSizeZ / 2f) - (_areaSize.y / 2f);
-
-                posX += Random.Range(-cellSizeX / 2f, cellSizeX / 2f) * _jitter;
-                posZ += Random.Range(-cellSizeZ / 2f, cellSizeZ / 2f) * _jitter;
-
-                Vector3 spawnPos = transform.position + new Vector3(posX, 0, posZ);
-
-                float height = _terrain.SampleHeight(spawnPos);
-                spawnPos.y = _terrain.transform.position.y + height;
-
-                var obj = Instantiate(prefabsToSpawn[spawnedCount],
-                                      spawnPos,
-                                      Quaternion.Euler(0, Random.Range(0, 360), 0),
-                                      _container);
-
-                obj.OnDestroyAsObservable()
-                .Subscribe(_ =>
-                {
-                    _treasures.Remove(obj);
-                })
-                .AddTo(this);
-
-                _treasures.Add(obj);
-                spawnedCount++;
-            }
-        }
+                yield return t;
     }
 
-    private void OnDrawGizmosSelected()
+    protected override GameObject GetPrefab(TreasureToSpawn data)
+        => data.TreasureData.Prefab;
+
+    protected override GameObject Spawn(GameObject prefab, Vector3 pos)
     {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireCube(transform.position, new Vector3(_areaSize.x, 2f, _areaSize.y));
+        return Instantiate(
+            prefab,
+            pos,
+            Quaternion.Euler(0, Random.Range(0, 360), 0),
+            _container
+        );
     }
 }
-
 [System.Serializable]
 
 public class TreasureToSpawn

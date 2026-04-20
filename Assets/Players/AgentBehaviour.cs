@@ -36,6 +36,11 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
     private CancellationTokenSource _chargeCts;
     private bool _isCharging;
 
+    [SerializeField] private string _agentId;
+    [SerializeField] private string _teamId;
+
+    public string AgentId => _agentId;
+    public string TeamId => _teamId;
 
     [Inject]
     private void Construct()
@@ -51,6 +56,12 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
             .AddTo(this);
 
 
+    }
+
+    public void Initialize(string agentId, string teamId)
+    {
+        _agentId = agentId;
+        _teamId = teamId;
     }
 
 
