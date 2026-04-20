@@ -1,34 +1,37 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UniRx;
 using UniRx.Triggers;
 using UnityEngine;
+using UnityEngine.AI;
+using Zenject;
 
-public class TreasureGenerator : MonoBehaviour
+public class GolemSpawner : MonoBehaviour
 {
     [SerializeField] private Terrain _terrain;
     [SerializeField] private Vector2 _areaSize = new Vector2(100f, 100f);
     [Range(0f, 1f)][SerializeField] private float _jitter = 0.8f;
-
-    [SerializeField] private TreasureToSpawn[] _treasuresToSpawn;
     [SerializeField] private Transform _container;
 
-    [SerializeField] private ReactiveCollection<GameObject> _treasures = new ReactiveCollection<GameObject>();
-    public IReadOnlyReactiveCollection<GameObject> Treasures => _treasures;
+    [SerializeField] private GolemToSpawn[] _golemsToSpawn;
+
+    private readonly ReactiveCollection<GameObject> _golems = new ReactiveCollection<GameObject>();
+    public IReadOnlyReactiveCollection<GameObject> Golems => _golems;
+    [Inject] DiContainer _diContainer;
+
     private void Start()
     {
         if (_terrain == null) _terrain = Terrain.activeTerrain;
-
-        GenerateTreasuresUniformly();
+        SpawnGolems();
     }
 
-    private void GenerateTreasuresUniformly()
+    private void SpawnGolems()
     {
         List<GameObject> prefabsToSpawn = new List<GameObject>();
-        foreach (var t in _treasuresToSpawn)
+        foreach (var golem in _golemsToSpawn)
         {
-            for (int i = 0; i < t.SpawnCount; i++)
+            for (int i = 0; i < golem.SpawnCount; i++)
             {
-                prefabsToSpawn.Add(t.TreasureData.Prefab);
+                prefabsToSpawn.Add(golem.GolemPrefab);
             }
         }
 
@@ -69,19 +72,23 @@ public class TreasureGenerator : MonoBehaviour
                 float height = _terrain.SampleHeight(spawnPos);
                 spawnPos.y = _terrain.transform.position.y + height;
 
-                var obj = Instantiate(prefabsToSpawn[spawnedCount],
-                                      spawnPos,
-                                      Quaternion.Euler(0, Random.Range(0, 360), 0),
-                                      _container);
-
-                obj.OnDestroyAsObservable()
-                .Subscribe(_ =>
+                if (NavMesh.SamplePosition(spawnPos, out NavMeshHit hit, 2f, NavMesh.AllAreas))
                 {
-                    _treasures.Remove(obj);
-                })
-                .AddTo(this);
+                    spawnPos = hit.position;
+                }
+                else
+                {
+                    spawnedCount++;
+                    continue;
+                }
 
-                _treasures.Add(obj);
+                GameObject golemObj = _diContainer.InstantiatePrefab(prefabsToSpawn[spawnedCount], spawnPos, Quaternion.identity, _container);
+
+                golemObj.OnDestroyAsObservable()
+                    .Subscribe(_ => _golems.Remove(golemObj))
+                    .AddTo(golemObj);
+
+                _golems.Add(golemObj);
                 spawnedCount++;
             }
         }
@@ -89,18 +96,17 @@ public class TreasureGenerator : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = Color.yellow;
+        Gizmos.color = Color.red;
         Gizmos.DrawWireCube(transform.position, new Vector3(_areaSize.x, 2f, _areaSize.y));
     }
 }
 
 [System.Serializable]
-
-public class TreasureToSpawn
+public class GolemToSpawn
 {
-    [SerializeField] private ItemData _treasureData;
+    [SerializeField] private GameObject _golemPrefab;
     [SerializeField] private int _spawnCount;
 
-    public ItemData TreasureData => _treasureData;
+    public GameObject GolemPrefab => _golemPrefab;
     public int SpawnCount => _spawnCount;
 }

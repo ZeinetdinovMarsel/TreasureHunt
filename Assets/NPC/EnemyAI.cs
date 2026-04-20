@@ -1,8 +1,6 @@
 using Cysharp.Threading.Tasks;
-using PrimeTween;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using UniRx;
 using UnityEngine;
@@ -14,17 +12,15 @@ public class EnemyAI : MonoBehaviour
 {
     private enum State { Patrolling, Chasing, Attacking }
 
-    [SerializeField] private List<Transform> _wayPoints;
     [SerializeField] private EnemySettings _settings;
     public EnemySettings Settings => _settings;
 
-    private NavMeshAgent _agent;
+    [Inject]private NavMeshAgent _agent;
     private IStunnable _currentTarget;
     private CompositeDisposable _disposables = new();
     private CancellationTokenSource _attackCts;
 
     private ReactiveProperty<State> _currentState = new(State.Patrolling);
-    private int _currentWayPointIndex;
     private bool _isAttacking;
 
     private readonly Collider[] _detectionBuffer = new Collider[5];
@@ -35,10 +31,13 @@ public class EnemyAI : MonoBehaviour
 
     private CancellationTokenSource _forgetCts;
     private bool _isForgetting;
+    [SerializeField] private bool _isWaiting;
+    private Vector3 _initialPosition;
+
     private void Awake()
     {
-        _agent = GetComponent<NavMeshAgent>();
         _attackCts = new CancellationTokenSource();
+        _initialPosition = transform.position;
     }
 
     private void Start()
@@ -48,6 +47,7 @@ public class EnemyAI : MonoBehaviour
         _anim.OnAttackHit
            .Subscribe(_ => ApplyDamage())
            .AddTo(_disposables);
+
         Observable.EveryFixedUpdate()
             .Subscribe(_ => Tick())
             .AddTo(_disposables);
@@ -177,15 +177,33 @@ public class EnemyAI : MonoBehaviour
         _isAttacking = false;
     }
 
-    private void UpdatePatrol()
+    private async void UpdatePatrol()
     {
-        if (_wayPoints.Count == 0) return;
-        _agent.SetDestination(_wayPoints[_currentWayPointIndex].position);
-
-        if (!_agent.pathPending && _agent.remainingDistance <= _agent.stoppingDistance)
+        if (!_isWaiting && !_agent.pathPending && _agent.remainingDistance <= _agent.stoppingDistance)
         {
-            _currentWayPointIndex = (_currentWayPointIndex + 1) % _wayPoints.Count;
+            await WaitAtPoint();
+            _agent.SetDestination(GetRandomNavMeshPoint());
         }
+    }
+
+    private async UniTask WaitAtPoint()
+    {
+        _isWaiting = true;
+        await UniTask.Delay(TimeSpan.FromSeconds(UnityEngine.Random.Range(1f, 3f)));
+        _isWaiting = false;
+    }
+
+    private Vector3 GetRandomNavMeshPoint()
+    {
+        for (int i = 0; i < 10; i++)
+        {
+            Vector3 random = _initialPosition + UnityEngine.Random.insideUnitSphere * _settings.PatrolRadius;
+
+            if (NavMesh.SamplePosition(random, out var hit, 5f, NavMesh.AllAreas))
+                return hit.position;
+        }
+
+        return  _initialPosition;
     }
 
     private void OnStateChanged(State newState)

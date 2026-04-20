@@ -4,6 +4,7 @@ using System;
 [Serializable]
 public class EnemySettings
 {
+    [field: SerializeField] public float PatrolRadius { get; private set; } = 20f;
     [field: SerializeField] public float PatrolSpeed { get; private set; } = 3.5f;
     [field: SerializeField] public float ChaseSpeed { get; private set; } = 6f;
 
