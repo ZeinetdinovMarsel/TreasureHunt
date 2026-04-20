@@ -348,7 +348,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 354350443408783854, guid: 094cd1418e634464ebab9c4a1fdcbde4, type: 3}
       propertyPath: m_TagString
-      value: Player
+      value: BlueTeam
       objectReference: {fileID: 0}
     - target: {fileID: 393861765822729100, guid: 094cd1418e634464ebab9c4a1fdcbde4, type: 3}
       propertyPath: m_IsActive
@@ -1218,9 +1218,6 @@ PrefabInstance:
       addedObject: {fileID: 7421171976581591257}
     - targetCorrespondingSourceObject: {fileID: 354350443408783854, guid: 094cd1418e634464ebab9c4a1fdcbde4, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 4617221799677983276}
-    - targetCorrespondingSourceObject: {fileID: 354350443408783854, guid: 094cd1418e634464ebab9c4a1fdcbde4, type: 3}
-      insertIndex: -1
       addedObject: {fileID: 1075101439425725036}
     - targetCorrespondingSourceObject: {fileID: 354350443408783854, guid: 094cd1418e634464ebab9c4a1fdcbde4, type: 3}
       insertIndex: -1
@@ -1276,11 +1273,15 @@ MonoBehaviour:
   _worldItem: {fileID: 0}
   _maxSpeed: 5
   _looseSpeedPercent: 0.05
+  _chargePerStep: 0.02
+  _stepDelaySec: 1
+  _stealAbilityReady: 0
+  _stealRadius: 1
   _agentsLayerMask:
     serializedVersion: 2
     m_Bits: 128
-  _stealAbilityReady: 0
-  _stealRadius: 0
+  _stealAbilityPower:
+    value: 0
 --- !u!114 &2017912096224707206
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1306,21 +1307,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::AgentController
   virtualCamera: {fileID: 2218638514660632299}
---- !u!114 &4617221799677983276
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5613935651759276162}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bf41964dd48bdcf4f98705dacdbedd0d, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RandomPatrol
-  _patrolRadius: 15
-  _waitTime: 2
-  _stoppingDistance: 0.2
 --- !u!54 &1075101439425725036
 Rigidbody:
   m_ObjectHideFlags: 0

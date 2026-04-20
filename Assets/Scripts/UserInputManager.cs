@@ -11,6 +11,7 @@ public class UserInputManager : MonoBehaviour
     private readonly Subject<PressedState> _pauseSubject = new Subject<PressedState>();
     private readonly Subject<PressedState> _pickUpItemSubject = new Subject<PressedState>();
     private readonly Subject<PressedState> _dropItemSubject = new Subject<PressedState>();
+    private readonly Subject<PressedState> _stealItemSubject = new Subject<PressedState>();
 
     public IObservable<Vector2> OnMoveAsObservable => _moveSubject;
     public IObservable<float> OnCamHeightAsObservable => _camHeightSubject;
@@ -18,6 +19,7 @@ public class UserInputManager : MonoBehaviour
     public IObservable<PressedState> OnPauseAsObservable => _pauseSubject;
     public IObservable<PressedState> OnPickUpItemAsObservable => _pickUpItemSubject;
     public IObservable<PressedState> OnDropItemAsObservable => _dropItemSubject;
+    public IObservable<PressedState> OnStealItemAsObservable => _stealItemSubject;
 
     public void OnMove(InputAction.CallbackContext ctx)
     {
@@ -47,6 +49,11 @@ public class UserInputManager : MonoBehaviour
         _dropItemSubject.OnNext(GetPressedState(ctx));
     }
 
+    public void OnStealItem(InputAction.CallbackContext ctx)
+    {
+        _stealItemSubject.OnNext(GetPressedState(ctx));
+    }
+
     private PressedState GetPressedState(InputAction.CallbackContext ctx)
     {
         if (ctx.canceled) return PressedState.Canceled;
@@ -64,5 +71,6 @@ public class UserInputManager : MonoBehaviour
         _pauseSubject.OnCompleted();
         _pickUpItemSubject.OnCompleted();
         _dropItemSubject.OnCompleted();
+        _stealItemSubject.OnCompleted();
     }
 }

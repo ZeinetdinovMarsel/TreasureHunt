@@ -55,6 +55,26 @@ public class CartBehaviour : MonoBehaviour
 
         return null;
     }
+
+    public (ItemData, WorldItem) RemoveObjectFromCart(bool withGameObject)
+    {
+        if (_storedObject != null)
+        {
+            var obj = _storedObject;
+
+            Tween.StopAll();
+
+            ItemData data = _storedItem;
+
+            _storedObject = null;
+            Weight.Value = 0;
+
+            return (data, obj);
+        }
+
+        return (null, null);
+    }
+
     public void ThrowObjectBack(float distance = 2f, float height = 1.2f, float duration = 0.5f)
     {
         if (_storedObject == null)

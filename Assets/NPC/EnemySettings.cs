@@ -11,10 +11,8 @@ public class EnemySettings
     [field: SerializeField] public float StopChaseRange { get; private set; } = 15f;
     [field: SerializeField] public float AttackRange { get; private set; } = 2f;
 
-    [field: SerializeField] public float StunDuration { get; private set; } = 3f;
     [field: SerializeField] public float AttackCooldown { get; private set; } = 2f;
     [field: SerializeField] public float ForgetTargetDuration { get; private set; } = 5f;
-
 
     [field: SerializeField] public LayerMask TargetLayer { get; private set; }
     [field: SerializeField] public LayerMask ObstacleLayer { get; private set; }

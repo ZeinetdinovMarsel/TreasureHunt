@@ -133,7 +133,7 @@ public class EnemyAI : MonoBehaviour
         if (_currentTarget == null) return;
 
         _currentTarget
-            .ApplyStunAsync(_settings.StunDuration, _attackCts.Token)
+            .ApplyStunAsync(_attackCts.Token)
             .Forget();
 
         StartForgetTargetAsync().Forget();

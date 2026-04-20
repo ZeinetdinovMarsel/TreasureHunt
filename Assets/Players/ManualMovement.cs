@@ -44,6 +44,16 @@ public class AgentManualMovementController : MonoBehaviour
                }
            })
            .AddTo(this);
+
+        _inputManager.OnStealItemAsObservable
+          .Subscribe(val =>
+          {
+              if (val == UserInputManager.PressedState.Started)
+              {
+                  _agentBehaviour.StealItem();
+              }
+          })
+          .AddTo(this);
     }
 
     private void Update()

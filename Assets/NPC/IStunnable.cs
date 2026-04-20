@@ -5,5 +5,5 @@ using UniRx;
 public interface IStunnable
 {
     IReadOnlyReactiveProperty<bool> IsStunned { get; }
-    UniTask ApplyStunAsync(float duration, CancellationToken token);
+    UniTask ApplyStunAsync( CancellationToken token, float duration = 5);
 }
