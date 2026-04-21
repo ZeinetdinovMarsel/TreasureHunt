@@ -23,6 +23,8 @@ public class NetworkServer : MonoBehaviour
 
     [Inject] TreasureGenerator _treasureGen;
     [Inject] GolemGenerator _golemsGen;
+    [Inject] GameFlowManager _gameFlow;
+    [Inject] LobbyManager _lobby;
     [Inject(Id = "Blue")] TeamBase _teamBaseBlue;
     [Inject(Id = "Red")] TeamBase _teamBaseRed;
 
@@ -79,6 +81,16 @@ public class NetworkServer : MonoBehaviour
         return int.TryParse(item.HolderAgentId, out var id) ? id : null;
     }
 
+    private void HandleJoin(ClientCommand cmd)
+    {
+        _lobby.SetTeam(cmd.id, cmd.team);
+    }
+
+    private void HandleReady(ClientCommand cmd)
+    {
+        _lobby.SetReady(cmd.id);
+    }
+
     private async UniTaskVoid StartServer(CancellationToken token)
     {
         try
@@ -87,7 +99,7 @@ public class NetworkServer : MonoBehaviour
             _listener.Start();
             _isRunning = true;
             Debug.Log($"<color=green>[Server]</color> Started on port {_port}");
-
+            _gameFlow.StartLobby();
             UpdateLoop(token).Forget();
 
             while (!token.IsCancellationRequested)
@@ -120,7 +132,7 @@ public class NetworkServer : MonoBehaviour
                 ProcessCommands(json);
             }
         }
-        catch (Exception) {  }
+        catch (Exception) { }
         finally
         {
             _clients.Remove(client);
@@ -137,19 +149,41 @@ public class NetworkServer : MonoBehaviour
 
             foreach (var cmd in batch.actions)
             {
-                var agent = Array.Find(_allAgents, a => a.AgentId == cmd.id);
-                if (agent == null) continue;
-
                 switch (cmd.action)
                 {
-                    case "position": agent.SafeSetDestination(cmd.target.GetVector()); break;
-                    case "pickup": agent.PickUpItem(); break;
-                    case "drop": agent.DropItem(); break;
-                    case "steal": agent.StealItem(); break;
+                    case "join": HandleJoin(cmd); break;
+                    case "ready": HandleReady(cmd); break;
+                }
+
+                if (_gameFlow.State != GameState.InGame)
+                    continue;
+
+                var agents = _allAgents.Where(a => a.TeamId == cmd.team);
+
+                foreach (var agent in agents)
+                {
+                    switch (cmd.action)
+                    {
+                        case "position":
+                            agent.SafeSetDestination(cmd.target.GetVector());
+                            break;
+
+                        case "pickup":
+                            agent.PickUpItem();
+                            break;
+
+                        case "drop":
+                            agent.DropItem();
+                            break;
+
+                        case "steal":
+                            agent.StealItem();
+                            break;
+                    }
                 }
             }
         }
-        catch {}
+        catch { }
     }
 
     private async UniTaskVoid UpdateLoop(CancellationToken token)
@@ -169,7 +203,8 @@ public class NetworkServer : MonoBehaviour
         var state = new WorldStateDto
         {
             tick = _currentTick,
-            gameTime = Time.time
+            gameTime = Time.time,
+            gameState = _gameFlow.State.ToString()
         };
 
         state.bases.Add(new BaseDto
@@ -235,7 +270,7 @@ public class NetworkServer : MonoBehaviour
             });
         }
 
-        var json = 
+        var json =
         JsonConvert.SerializeObject(
         state,
         Formatting.None,

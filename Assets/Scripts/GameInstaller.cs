@@ -7,6 +7,9 @@ public class GameInstaller : MonoInstaller
     [SerializeField] private TreasureGenerator _treasureGen;
     [SerializeField] private TeamBase _blueBase;
     [SerializeField] private TeamBase _redBase;
+    [SerializeField] private NetworkServer _networkServer;
+    [SerializeField] private GameFlowManager _gameFlowManager;
+    [SerializeField] private LobbyManager _lobbyManager;
 
     public override void InstallBindings()
     {
@@ -14,5 +17,8 @@ public class GameInstaller : MonoInstaller
         Container.Bind<TreasureGenerator>().FromInstance(_treasureGen).AsSingle();
         Container.Bind<TeamBase>().WithId("Blue").FromInstance(_blueBase).AsCached();
         Container.Bind<TeamBase>().WithId("Red").FromInstance(_redBase).AsCached();
+        Container.Bind<NetworkServer>().FromInstance(_networkServer).AsCached();
+        Container.Bind<GameFlowManager>().FromInstance(_gameFlowManager).AsCached();
+        Container.Bind<LobbyManager>().FromInstance(_lobbyManager).AsCached();
     }
 }

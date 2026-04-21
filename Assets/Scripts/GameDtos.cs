@@ -25,6 +25,7 @@ public class WorldStateDto
 {
     public int tick;
     public float gameTime;
+    public string gameState;
     public List<BaseDto> bases = new();
     public List<AgentDto> agents = new();
     public List<GolemDto> golems = new();
@@ -75,7 +76,7 @@ public class TreasureDto
     public int value;
     public float weight;
 }
-[Serializable] public class ClientCommand { public string id; public string action; public Vector3Dto target; }
+[Serializable] public class ClientCommand { public string id; public string action; public Vector3Dto target; public string team; }
 [Serializable] public class ClientCommandBatch { public List<ClientCommand> actions; }
 
 [Serializable]
@@ -86,3 +87,10 @@ public class AgentCommand
     public Vector3Dto target;
 }
 
+[Serializable]
+public class JoinRequest
+{
+    public string playerId;
+    public string team;
+    public bool ready;
+}
