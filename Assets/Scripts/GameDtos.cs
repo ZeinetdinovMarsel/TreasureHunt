@@ -10,7 +10,7 @@ public class WorldStateDto
     public List<AgentDto> agents = new();
     public List<TreasureDto> treasures = new();
     public List<GolemDto> golems = new();
-    public List<BaseDto> bases = new(); 
+    public List<BaseDto> bases = new();
 }
 
 [Serializable]
@@ -40,12 +40,8 @@ public class GolemDto
     public string id;
     public Vector3 pos;
 }
-
-[Serializable]
-public class ClientCommandBatch
-{
-    public List<AgentCommand> actions = new();
-}
+[Serializable] public class ClientCommand { public string id; public string action; public Vector3 target; }
+[Serializable] public class ClientCommandBatch { public List<ClientCommand> actions; }
 
 [Serializable]
 public class AgentCommand
@@ -58,7 +54,7 @@ public class AgentCommand
 [Serializable]
 public class BaseDto
 {
-    public TeamType teamId;
+    public string team;
     public Vector3 pos;
     public float score;
 }

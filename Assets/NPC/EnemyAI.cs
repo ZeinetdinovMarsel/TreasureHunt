@@ -132,9 +132,11 @@ public class EnemyAI : MonoBehaviour
     {
         if (_currentTarget == null) return;
 
-        _currentTarget
-            .ApplyStunAsync(_attackCts.Token)
-            .Forget();
+        if (_currentTarget is AgentBehaviour victim)
+        {
+            victim.ApplyStunAsync(victim.GetCancellationTokenOnDestroy())
+                  .Forget();
+        }
 
         StartForgetTargetAsync().Forget();
     }

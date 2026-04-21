@@ -128,14 +128,20 @@ public abstract class GridSpawnerBase<T> : MonoBehaviour
     {
         if (IsAreaFree(pos))
             return true;
+ 
+        Vector3 directionToSpawner = (transform.position - pos).normalized;
 
         for (int i = 0; i < _maxRepositionAttempts; i++)
         {
-            float offsetX = Random.Range(-cellSizeX, cellSizeX);
-            float offsetZ = Random.Range(-cellSizeZ, cellSizeZ);
+            float stepMultiplier = (i + 1) * 0.5f;
+
+            float offsetX = directionToSpawner.x * cellSizeX * stepMultiplier;
+            float offsetZ = directionToSpawner.z * cellSizeZ * stepMultiplier;
+
+            offsetX += Random.Range(-cellSizeX * 0.2f, cellSizeX * 0.2f);
+            offsetZ += Random.Range(-cellSizeZ * 0.2f, cellSizeZ * 0.2f);
 
             Vector3 testPos = pos + new Vector3(offsetX, 0, offsetZ);
-
             float height = _terrain.SampleHeight(testPos);
             testPos.y = _terrain.transform.position.y + height;
 

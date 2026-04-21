@@ -232,9 +232,13 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
         if (_isStunned.Value) return;
 
         _isStunned.Value = true;
-        _agent.isStopped = true;
-        _agent.velocity = Vector3.zero;
-        _agent.ResetPath();
+        if (_agent != null)
+        {
+            _agent.isStopped = true;
+            _agent.velocity = Vector3.zero;
+            _agent.ResetPath();
+        }
+
         _cartBeh.ThrowObjectBack();
         _worldItem = null;
 
@@ -242,10 +246,18 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
         {
             await UniTask.Delay(TimeSpan.FromSeconds(duration), cancellationToken: token);
         }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
         finally
         {
-            _isStunned.Value = false;
-            _agent.isStopped = false;
+
+            if (this != null && _agent != null)
+            {
+                _isStunned.Value = false;
+                _agent.isStopped = false;
+            }
         }
     }
 }

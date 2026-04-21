@@ -87,7 +87,7 @@ public class CartBehaviour : MonoBehaviour
         Transform t = obj.transform;
 
         Vector3 startPos = t.position;
-        Vector3 backDir = transform.forward;
+        Vector3 backDir = -transform.forward;
 
         Vector3 endPos = FindDropPoint(startPos, backDir, distance);
 
