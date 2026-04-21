@@ -1,4 +1,5 @@
 ﻿using Cysharp.Threading.Tasks;
+using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -7,9 +8,9 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using UniRx;
 using UnityEngine;
 using Zenject;
-
 public class NetworkServer : MonoBehaviour
 {
     [SerializeField] private int _port = 8080;
@@ -26,12 +27,58 @@ public class NetworkServer : MonoBehaviour
     [Inject(Id = "Red")] TeamBase _teamBaseRed;
 
     private AgentBehaviour[] _allAgents;
-
+    private EnemyAI[] _allGolems;
+    private List<WorldItem> _treasuresCache = new();
     private void Start()
     {
         _allAgents = _teamBaseRed.Objects.Concat(_teamBaseBlue.Objects).ToArray();
+        _allGolems = _golemsGen.Objects
+            .Where(o => o != null)
+            .Select(o => o.GetComponent<EnemyAI>())
+            .Where(g => g != null)
+            .ToArray();
+
+        foreach (var obj in _treasureGen.Objects)
+            AddTreasure(obj);
+
+        ObservableExtensions.Subscribe(
+            _treasureGen.Objects.ObserveAdd(),
+            x => AddTreasure(x.Value)
+        ).AddTo(this);
+
+        ObservableExtensions.Subscribe(
+           _treasureGen.Objects.ObserveRemove(),
+           x => RemoveTreasure(x.Value)
+       ).AddTo(this);
+
         StartServer(this.GetCancellationTokenOnDestroy()).Forget();
     }
+
+    private void AddTreasure(GameObject obj)
+    {
+        if (obj == null) return;
+
+        var item = obj.GetComponent<WorldItem>();
+        if (item != null)
+            _treasuresCache.Add(item);
+    }
+
+    private void RemoveTreasure(GameObject obj)
+    {
+        if (obj == null) return;
+
+        var item = obj.GetComponent<WorldItem>();
+        if (item != null)
+            _treasuresCache.Remove(item);
+    }
+
+    private int? GetHolder(WorldItem item)
+    {
+        if (string.IsNullOrEmpty(item.HolderAgentId)) return null;
+
+        return int.TryParse(item.HolderAgentId, out var id) ? id : null;
+    }
+
     private async UniTaskVoid StartServer(CancellationToken token)
     {
         try
@@ -95,7 +142,7 @@ public class NetworkServer : MonoBehaviour
 
                 switch (cmd.action)
                 {
-                    case "position": agent.SafeSetDestination(cmd.target); break;
+                    case "position": agent.SafeSetDestination(cmd.target.GetVector()); break;
                     case "pickup": agent.PickUpItem(); break;
                     case "drop": agent.DropItem(); break;
                     case "steal": agent.StealItem(); break;
@@ -119,48 +166,98 @@ public class NetworkServer : MonoBehaviour
     {
         if (_clients.Count == 0) return;
 
-        var state = new WorldStateDto { tick = _currentTick, gameTime = Time.time };
+        var state = new WorldStateDto
+        {
+            tick = _currentTick,
+            gameTime = Time.time
+        };
 
-        state.bases.Add(new BaseDto { team = "blue", pos = _teamBaseBlue.transform.position });
-        state.bases.Add(new BaseDto { team = "red", pos = _teamBaseRed.transform.position });
+        state.bases.Add(new BaseDto
+        {
+            team = "blue",
+            pos = new Vector3Dto(_teamBaseBlue.transform.position),
+            points = _teamBaseBlue.Points
+        });
+
+        state.bases.Add(new BaseDto
+        {
+            team = "red",
+            pos = new Vector3Dto(_teamBaseRed.transform.position),
+            points = _teamBaseRed.Points
+        });
 
         foreach (var a in _allAgents)
         {
-            var nav = a.GetComponent<UnityEngine.AI.NavMeshAgent>();
+            var nav = a.Agent;
+
             state.agents.Add(new AgentDto
             {
-                id = a.AgentId,
+                agentId = int.TryParse(a.AgentId, out var id) ? id : 0,
                 team = a.TeamId,
-                pos = a.transform.position,
+                pos = new Vector3Dto(a.transform.position),
+                weight = a.Weight,
+                currentSpeed = a.CurrentSpeed,
                 isStunned = a.IsStunned.Value,
-                hasTreasure = a.CartBeh.Weight.Value > 0,
-                destination = (nav != null && nav.hasPath) ? nav.destination : a.transform.position
+                hasTreasure = a.HasTreasure,
+                heldTreasureId = a.HeldTreasureId,
+                stealAbilityReady = a.StealAbilityReady,
+                stealChargePercentage = a.StealChargePercentage,
+                destination = a.Destination != null
+                    ? new Vector3Dto(a.Destination.Value)
+                    : null
             });
         }
 
-        foreach (var g in _golemsGen.Objects)
-            state.golems.Add(new GolemDto { id = g.name, pos = g.transform.position });
+        foreach (var g in _allGolems)
+        {
+            state.golems.Add(new GolemDto
+            {
+                id = g.name,
+                pos = new Vector3Dto(g.transform.position),
+                currentSpeed = g.CurrentSpeed,
+                state = g.CurrentState,
+                targetAgentId = g.TargetAgentId
+            });
+        }
 
-        var treasures = _treasureGen.Objects
-          .Where(o => o != null)
-                .Select(o => o.GetComponent<WorldItem>())
-            .Where(w => w != null && !w.IsPicked);
-        foreach (var i in treasures)
+        foreach (var i in _treasuresCache)
+        {
+            if (i == null) continue;
+
             state.treasures.Add(new TreasureDto
             {
                 id = i.gameObject.GetEntityId().ToString(),
-                pos = i.transform.position,
+                pos = new Vector3Dto(i.transform.position),
+                isPicked = i.IsPicked,
+                holderAgentId = GetHolder(i),
                 value = (int)((i.ItemData as TreasureData)?.Cost ?? 0),
                 weight = i.ItemData.Weight
             });
+        }
 
-        string json = JsonUtility.ToJson(state) + "\n";
+        var json = 
+        JsonConvert.SerializeObject(
+        state,
+        Formatting.None,
+        new JsonSerializerSettings
+        {
+            NullValueHandling = NullValueHandling.Include
+        });
+
+        json += "\n";
         byte[] data = Encoding.UTF8.GetBytes(json);
 
         for (int i = _clients.Count - 1; i >= 0; i--)
         {
-            try { if (_clients[i].Connected) _clients[i].GetStream().Write(data, 0, data.Length); }
-            catch { _clients.RemoveAt(i); }
+            try
+            {
+                if (_clients[i].Connected)
+                    _clients[i].GetStream().Write(data, 0, data.Length);
+            }
+            catch
+            {
+                _clients.RemoveAt(i);
+            }
         }
     }
     private void StopServer()

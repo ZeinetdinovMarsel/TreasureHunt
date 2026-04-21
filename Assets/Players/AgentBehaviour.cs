@@ -39,8 +39,25 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
     [SerializeField] private string _agentId;
     [SerializeField] private string _teamId;
 
+    public NavMeshAgent Agent => _agent;
+
     public string AgentId => _agentId;
     public string TeamId => _teamId;
+
+    public float CurrentSpeed => _agent != null ? _agent.speed : 0f;
+    public float Weight => _cartBeh != null ? _cartBeh.Weight.Value : 0f;
+    public float StealChargePercentage => _stealAbilityPower.Value * 100f;
+    public bool HasTreasure => Weight > 0f;
+    public string HeldTreasureId => _cartBeh.StoredObject != null ? _cartBeh.StoredObject.MainObject.GetEntityId().ToString() : null;
+
+    public Vector3? Destination
+    {
+        get
+        {
+            if (_agent == null || !_agent.hasPath) return null;
+            return _agent.destination;
+        }
+    }
 
     [Inject]
     private void Construct()
@@ -156,7 +173,7 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
         if (_isStunned.Value) return;
         if (_worldItem != null && !_worldItem.IsPicked)
         {
-            _cartBeh.SetObjectOnCart(_worldItem.ItemData, _worldItem);
+            _cartBeh.SetObjectOnCart(_worldItem.ItemData, _worldItem, _agentId);
         }
     }
 
@@ -185,7 +202,7 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
                 (var stolenItem, var stolenObj) = victim.CartBeh.RemoveObjectFromCart(true);
                 if (stolenItem != null)
                 {
-                    _cartBeh.SetObjectOnCart(stolenItem, stolenObj);
+                    _cartBeh.SetObjectOnCart(stolenItem, stolenObj, _agentId);
                     _stealAbilityPower.Value = 0f;
 
                     ApplySpeedBuff().Forget();

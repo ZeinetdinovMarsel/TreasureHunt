@@ -14,7 +14,8 @@ public class TeamBase : MonoBehaviour
     [SerializeField] private TeamType _teamType;
     [SerializeField] private float _money;
     [Inject] DiContainer _diContainer;
-
+    public float Points => _money;
+    public string Team => _teamType.ToString().ToLower();
 
     protected readonly ReactiveCollection<AgentBehaviour> _objects = new ReactiveCollection<AgentBehaviour>();
     public IReadOnlyReactiveCollection<AgentBehaviour> Objects => _objects;
@@ -41,6 +42,22 @@ public class TeamBase : MonoBehaviour
         if (other.CompareTag("Treasure"))
         {
             if(other.TryGetComponent<WorldItem>(out var worldItem) && !worldItem.IsPicked)
+            {
+                var item = worldItem.ItemData as TreasureData;
+                if (item != null)
+                {
+                    _money += item.Cost;
+                    Destroy(worldItem.MainObject);
+                }
+            }
+        }
+    }
+
+    private void OnTriggerStay(Collider other)
+    {
+        if (other.CompareTag("Treasure"))
+        {
+            if (other.TryGetComponent<WorldItem>(out var worldItem) && !worldItem.IsPicked)
             {
                 var item = worldItem.ItemData as TreasureData;
                 if (item != null)

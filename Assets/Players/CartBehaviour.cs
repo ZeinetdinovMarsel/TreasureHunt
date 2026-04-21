@@ -9,14 +9,19 @@ public class CartBehaviour : MonoBehaviour
     private ItemData _storedItem;
     private WorldItem _storedObject;
 
+
+
+    public WorldItem StoredObject => _storedObject;
     public ReactiveProperty<float> Weight { get; private set; } = new FloatReactiveProperty(0f);
-    public void SetObjectOnCart(ItemData itemToStore, WorldItem objectToStore)
+
+    public void SetObjectOnCart(ItemData itemToStore, WorldItem objectToStore, string holderId )
     {
         if (_storedObject == null)
         {
             objectToStore.IsPicked = true;
             _storedItem = itemToStore;
             _storedObject = objectToStore;
+            objectToStore.HolderAgentId = holderId;
 
             objectToStore.MainObject.transform.SetParent(_placeTransform);
             objectToStore.MainObject.transform.localPosition = Vector3.zero;
@@ -66,6 +71,8 @@ public class CartBehaviour : MonoBehaviour
 
             ItemData data = _storedItem;
 
+            _storedObject.IsPicked = false;
+            _storedObject.HolderAgentId = null;
             _storedObject = null;
             Weight.Value = 0;
 
@@ -111,6 +118,7 @@ public class CartBehaviour : MonoBehaviour
             if (_storedObject != null)
             {
                 _storedObject.IsPicked = false;
+                _storedObject.HolderAgentId = null;
                 _storedObject = null;
             }
         });

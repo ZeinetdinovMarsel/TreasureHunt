@@ -8,7 +8,7 @@ public class WorldItem : MonoBehaviour
     [SerializeField] private GameObject _mainObject;
 
     private readonly BoolReactiveProperty _isPicked = new BoolReactiveProperty(false);
-
+    public string HolderAgentId { get; set; }
     public bool IsPicked
     {
         get => _isPicked.Value;

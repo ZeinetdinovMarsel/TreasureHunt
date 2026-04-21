@@ -194,7 +194,7 @@ MonoBehaviour:
     <StopChaseRange>k__BackingField: 15
     <AttackRange>k__BackingField: 2
     <AttackCooldown>k__BackingField: 2
-    <ForgetTargetDuration>k__BackingField: 5
+    <ForgetTargetDuration>k__BackingField: 8
     <TargetLayer>k__BackingField:
       serializedVersion: 2
       m_Bits: 128

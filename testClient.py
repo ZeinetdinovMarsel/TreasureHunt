@@ -25,46 +25,59 @@ class SmartAgent:
             return None
 
         if has_treasure:
-            self.target_treasure_id = None 
+            self.target_treasure_id = None
+
             my_base = next((b for b in bases if str(b['team']).lower() == team), None)
-            
+
             if my_base:
                 base_pos = my_base['pos']
                 distance_to_base = self.dist(pos, base_pos)
 
                 if distance_to_base < 2.0:
-                    self.last_destination = None 
-                    print(f"[{self.agent_id}] Доставил на базу. Сброс.")
-                    return {"id": self.agent_id, "action": "drop"}
+                    self.last_destination = None
+                    print(f"[{self.agent_id}] Доставил на базу")
+                    return {"id": str(self.agent_id), "action": "drop"}
 
                 if self.last_destination != base_pos:
                     self.last_destination = base_pos
-                    return {"id": self.agent_id, "action": "position", "target": base_pos}
-            return None
+                    return {"id": str(self.agent_id), "action": "position", "target": base_pos}
 
-        if not treasures:
             return None
-
-        target_obj = next((t for t in treasures if t['id'] == self.target_treasure_id), None)
         
+        free_treasures = [
+            t for t in treasures
+            if not t.get('isPicked', False) and t.get('holderAgentId') is None
+        ]
+
+        if not free_treasures:
+            return None
+
+        target_obj = next((t for t in free_treasures if t['id'] == self.target_treasure_id), None)
+
         if not target_obj:
-            target_obj = min(treasures, key=lambda t: self.dist(pos, t['pos']))
+            target_obj = min(free_treasures, key=lambda t: self.dist(pos, t['pos']))
             self.target_treasure_id = target_obj['id']
-            self.last_destination = None 
+            self.last_destination = None
 
         if self.dist(pos, target_obj['pos']) < 1.5:
-            self.target_treasure_id = None 
             print(f"[{self.agent_id}] Подбираю {target_obj['id']}")
-            return {"id": self.agent_id, "action": "pickup"}
+            self.target_treasure_id = None
+            return {"id": str(self.agent_id), "action": "pickup"}
 
         if self.last_destination != target_obj['pos']:
             self.last_destination = target_obj['pos']
-            return {"id": self.agent_id, "action": "position", "target": target_obj['pos']}
+            return {
+                "id": str(self.agent_id),
+                "action": "position",
+                "target": target_obj['pos']
+            }
 
         return None
 
+
 def main():
     agents_ai = {}
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         sock.connect((HOST, PORT))
@@ -74,18 +87,21 @@ def main():
         return
 
     buffer = ""
+
     while True:
         try:
             chunk = sock.recv(65536).decode('utf-8')
-            if not chunk: 
+            if not chunk:
                 break
+
             buffer += chunk
-            
+
             while "\n" in buffer:
                 line, buffer = buffer.split("\n", 1)
-                if not line.strip(): 
+
+                if not line.strip():
                     continue
-                
+
                 try:
                     state = json.loads(line)
                 except json.JSONDecodeError:
@@ -93,19 +109,20 @@ def main():
 
                 treasures = state.get('treasures', [])
                 bases = state.get('bases', [])
-                
+
                 commands = []
+
                 for a_data in state.get('agents', []):
                     a_id = a_data.get('agentId')
-                    
                     if a_id is None:
                         continue
 
                     if a_id not in agents_ai:
                         agents_ai[a_id] = SmartAgent(a_id)
-                    
+
                     cmd = agents_ai[a_id].decide(a_data, treasures, bases)
-                    if cmd: 
+
+                    if cmd:
                         commands.append(cmd)
 
                 if commands:
@@ -118,6 +135,7 @@ def main():
 
     print("Соединение закрыто.")
     sock.close()
+
 
 if __name__ == "__main__":
     main()

@@ -7,15 +7,16 @@ using UnityEngine;
 using UnityEngine.AI;
 using Zenject;
 
+public enum State { Patrolling, Chasing, Attacking }
 [RequireComponent(typeof(NavMeshAgent))]
 public class EnemyAI : MonoBehaviour
 {
-    private enum State { Patrolling, Chasing, Attacking }
-
     [SerializeField] private EnemySettings _settings;
     public EnemySettings Settings => _settings;
 
-    [Inject]private NavMeshAgent _agent;
+    [Inject] private NavMeshAgent _agent;
+
+
     private IStunnable _currentTarget;
     private CompositeDisposable _disposables = new();
     private CancellationTokenSource _attackCts;
@@ -33,6 +34,37 @@ public class EnemyAI : MonoBehaviour
     private bool _isForgetting;
     [SerializeField] private bool _isWaiting;
     private Vector3 _initialPosition;
+
+    public float CurrentSpeed => _agent != null ? _agent.speed : 0f;
+
+    public string CurrentState
+    {
+        get
+        {
+            return _currentState.Value switch
+            {
+                State.Patrolling => "Patrol",
+                State.Chasing => "Chase",
+                State.Attacking => "Attack",
+                _ => "Unknown"
+            };
+        }
+    }
+    public int? TargetAgentId
+    {
+        get
+        {
+            if (_currentTarget == null) return null;
+
+            if (_currentTarget is AgentBehaviour agent)
+            {
+                if (int.TryParse(agent.AgentId, out var id))
+                    return id;
+            }
+
+            return null;
+        }
+    }
 
     private void Awake()
     {
@@ -205,7 +237,7 @@ public class EnemyAI : MonoBehaviour
                 return hit.position;
         }
 
-        return  _initialPosition;
+        return _initialPosition;
     }
 
     private void OnStateChanged(State newState)
