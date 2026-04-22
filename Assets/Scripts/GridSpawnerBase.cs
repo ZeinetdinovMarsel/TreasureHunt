@@ -23,20 +23,18 @@ public abstract class GridSpawnerBase<T> : MonoBehaviour
 
     protected virtual Vector3 AdjustPosition(Vector3 pos) => pos;
 
-    protected virtual void Start()
+    protected virtual void Awake()
     {
         if (_terrain == null) _terrain = Terrain.activeTerrain;
         SpawnAll();
     }
 
-    private void SpawnAll()
+    protected void SpawnAll()
     {
         var prefabs = new List<GameObject>();
 
         foreach (var data in GetSpawnData())
-        {
             prefabs.Add(GetPrefab(data));
-        }
 
         int totalCount = prefabs.Count;
         if (totalCount == 0) return;
@@ -114,6 +112,25 @@ public abstract class GridSpawnerBase<T> : MonoBehaviour
             }
         }
     }
+
+    public void Rebuild()
+    {
+        ClearSpawned();
+        SpawnAll();
+    }
+
+    private void ClearSpawned()
+    {
+        var spawned = _objects;
+        foreach (var obj in spawned)
+        {
+            if (obj != null)
+                Destroy(obj);
+        }
+
+        _objects.Clear();
+    }
+
 
     private bool IsAreaFree(Vector3 pos)
     {

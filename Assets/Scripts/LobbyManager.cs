@@ -44,8 +44,8 @@ public class LobbyManager : MonoBehaviour
 
     private void RecalculateTeams()
     {
-        int red = _playerTeams.Values.Count(t => t == "red");
-        int blue = _playerTeams.Values.Count(t => t == "blue");
+        int red = _playerTeams.Values.Count(t => t == TeamType.Red.ToString().ToLower());
+        int blue = _playerTeams.Values.Count(t => t == TeamType.Blue.ToString().ToLower());
 
         _redCount.Value = red;
         _blueCount.Value = blue;

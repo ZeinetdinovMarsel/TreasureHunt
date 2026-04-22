@@ -2,178 +2,173 @@ import socket
 import json
 import math
 import time
+from typing import Optional, Dict, Any, List
 
-HOST = '127.0.0.1'
+HOST = "127.0.0.1"
 PORT = 8080
+
+STATE_LOBBY = "Lobby"
+STATE_INGAME = "InGame"
 
 
 class SmartAgent:
     def __init__(self, agent_id):
-        self.agent_id = agent_id
+        self.agent_id = str(agent_id)
         self.target_treasure_id = None
-        self.last_pos = None
-        self.last_cmd_time = 0
+        self.last_cmd_time = 0.0
+        self.command_interval = 0.08
 
-    def dist(self, p1, p2):
-        return math.sqrt(
-            (p1['x'] - p2['x']) ** 2 +
-            (p1['z'] - p2['z']) ** 2
-        )
+    @staticmethod
+    def dist(p1, p2):
+        return math.sqrt((p1["x"] - p2["x"]) ** 2 + (p1["z"] - p2["z"]) ** 2)
 
     def can_send(self):
-        # анти-спам (10 команд/сек максимум)
         now = time.time()
-        if now - self.last_cmd_time < 0.1:
+        if now - self.last_cmd_time < self.command_interval:
             return False
         self.last_cmd_time = now
         return True
 
-    def decide(self, data, treasures, bases, game_state):
-        if game_state != "InGame":
-            return None
-
-        pos = data['pos']
-        has_treasure = data.get('hasTreasure', False)
-        team = str(data.get('team', 'blue')).lower()
-
-        if data.get('isStunned', False):
+    def decide(self, agent_state, treasures, bases, game_state, team):
+        if game_state != STATE_INGAME:
             self.target_treasure_id = None
             return None
 
-        # -----------------------------
-        # RETURN TREASURE TO BASE
-        # -----------------------------
+        pos = agent_state.get("pos")
+        if not pos:
+            return None
+
+        if agent_state.get("isStunned"):
+            self.target_treasure_id = None
+            return None
+
+        has_treasure = agent_state.get("hasTreasure", False)
+
         if has_treasure:
             self.target_treasure_id = None
 
-            my_base = next((b for b in bases if str(b['team']).lower() == team), None)
-            if not my_base:
+            base = next((b for b in bases if b["team"].lower() == team.lower()), None)
+            if not base:
                 return None
 
-            base_pos = my_base['pos']
-            dist = self.dist(pos, base_pos)
+            base_pos = base["pos"]
 
-            if dist < 2.0:
-                return self._cmd("drop")
+            if self.dist(pos, base_pos) < 2.0:
+                return self._cmd("drop", base_pos)
 
-            if self.last_pos != base_pos:
-                self.last_pos = base_pos
-                return self._cmd("position", base_pos)
+            return self._cmd("position", base_pos)
 
-            return None
-
-        # -----------------------------
-        # FIND TREASURE
-        # -----------------------------
-        free_treasures = [
+        free = [
             t for t in treasures
-            if not t.get('isPicked', False) and t.get('holderAgentId') is None
+            if not t.get("isPicked", False)
+            and t.get("holderAgentId") is None
         ]
 
-        if not free_treasures:
+        if not free:
             return None
 
-        target = next(
-            (t for t in free_treasures if t['id'] == self.target_treasure_id),
-            None
-        )
+        target = None
+
+        if self.target_treasure_id:
+            target = next((t for t in free if str(t["id"]) == str(self.target_treasure_id)), None)
 
         if not target:
-            target = min(free_treasures, key=lambda t: self.dist(pos, t['pos']))
-            self.target_treasure_id = target['id']
-            self.last_pos = None
+            target = min(free, key=lambda t: self.dist(pos, t["pos"]))
+            self.target_treasure_id = target["id"]
 
-        dist = self.dist(pos, target['pos'])
+        if self.dist(pos, target["pos"]) < 1.5:
+            return self._cmd("pickup", target["pos"])
 
-        if dist < 1.5:
-            self.target_treasure_id = None
-            return self._cmd("pickup")
-
-        if self.last_pos != target['pos']:
-            self.last_pos = target['pos']
-            return self._cmd("position", target['pos'])
-
-        return None
+        return self._cmd("position", target["pos"])
 
     def _cmd(self, action, target=None):
         if not self.can_send():
             return None
 
         cmd = {
-            "id": str(self.agent_id),
+            "Id": self.agent_id,
             "action": action
         }
 
-        if target:
+        if target is not None:
             cmd["target"] = target
 
         return cmd
 
 
+def send(sock, obj):
+    data = json.dumps(obj, ensure_ascii=False) + "\n"
+    sock.sendall(data.encode("utf-8"))
 
-def send_register(sock, team):
-    sock.sendall((json.dumps({
-        "actions": [
-            {"id": "2", "action": "join", "team": team}
-        ]
-    }) + "\n").encode())
 
-    time.sleep(0.1)
-
-    sock.sendall((json.dumps({
-        "actions": [
-            {"id": "2", "action": "ready"}
-        ]
-    }) + "\n").encode())
-# -----------------------------
-# MAIN LOOP
-# -----------------------------
-def main():
-    agents_ai = {}
-
+def start_client(team_name: str):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(None)
+
+    agents_ai = {}
 
     try:
         sock.connect((HOST, PORT))
-        print("Connected to Unity server!")
-        send_register(sock,"red")
-    except Exception as e:
-        print(f"Connection error: {e}")
-        return
+        print(f"[Клиент] Подключился в команду {team_name}")
 
-    buffer = ""
+        send(sock, {"team": team_name})
 
-    while True:
-        try:
-            chunk = sock.recv(65536).decode('utf-8')
+        buffer = ""
+        player_id = None
+
+        while True:
+            chunk = sock.recv(65536)
             if not chunk:
                 break
 
-            buffer += chunk
+            buffer += chunk.decode("utf-8", errors="ignore")
 
             while "\n" in buffer:
                 line, buffer = buffer.split("\n", 1)
-
                 if not line.strip():
                     continue
 
-                try:
-                    state = json.loads(line)
-                except json.JSONDecodeError:
+                msg = json.loads(line)
+
+                if msg.get("type") == "joinAccepted":
+                    player_id = msg.get("playerId")
+                    print(f"[Клиент] Подключиться удалось с id пользователя {player_id}")
+                    send(sock, {"actions": [{"action": "ready"}]})
                     continue
 
-                treasures = state.get('treasures', [])
-                bases = state.get('bases', [])
+                if msg.get("type") == "joinRejected":
+                    print("[Клиент] Подключение не удалось: ", msg.get("reason"))
+                    return
 
-                # ⚡ ВАЖНО: добавь gameState в Unity DTO
-                game_state = state.get("gameState", "Menu")
+                if msg.get("type") == "gameEvent":
+                    event_type = msg.get("eventType")
 
-                commands = []
+                    if event_type == "start":
+                        print("[Клиент] Игра началась")
 
-                for a in state.get('agents', []):
-                    a_id = a.get('agentId')
-                    if a_id is None:
+                    elif event_type == "end":
+                        print("[Клиент] Игра закончилась")
+
+                    elif event_type == "result":
+                        print("[Клиент] Результат: ", msg)
+
+                    continue
+
+                if not player_id:
+                    continue
+
+                agents = msg.get("agents", [])
+                treasures = msg.get("treasures", [])
+                bases = msg.get("bases", [])
+                game_state = msg.get("gameState", STATE_LOBBY)
+
+                actions = []
+
+                for a in agents:
+                    if str(a.get("team")).lower() != team_name.lower():
                         continue
+
+                    a_id = a["agentId"]
 
                     if a_id not in agents_ai:
                         agents_ai[a_id] = SmartAgent(a_id)
@@ -182,23 +177,23 @@ def main():
                         a,
                         treasures,
                         bases,
-                        game_state
+                        game_state,
+                        team_name
                     )
 
                     if cmd:
-                        commands.append(cmd)
+                        actions.append(cmd)
 
-                if commands:
-                    packet = json.dumps({"actions": commands}) + "\n"
-                    sock.sendall(packet.encode('utf-8'))
+                if actions:
+                    send(sock, {"actions": actions})
 
-        except Exception as e:
-            print(f"Loop error: {e}")
-            break
+    except Exception as e:
+        print("[Клиент ошибка]", e)
 
-    print("Disconnected.")
-    sock.close()
+    finally:
+        sock.close()
+        print("[Клиент] отключился")
 
 
 if __name__ == "__main__":
-    main()
+    start_client("blue")

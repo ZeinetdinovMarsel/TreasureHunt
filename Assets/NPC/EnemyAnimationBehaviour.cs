@@ -2,11 +2,12 @@ using System;
 using UniRx;
 using UnityEngine;
 using UnityEngine.AI;
+using Zenject;
 
 public class EnemyAnimationBehaviour : MonoBehaviour
 {
-    private NavMeshAgent _agent;
-    private Animator _animator;
+    [Inject] private NavMeshAgent _agent;
+    [Inject] private Animator _animator;
     private EnemyAI _enemyAI;
 
     public IObservable<Unit> OnAttackHit => _onAttackHit;

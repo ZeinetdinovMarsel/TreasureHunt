@@ -11,48 +11,55 @@ public class GameFlowManager : MonoBehaviour
 {
     [SerializeField] private float _matchDuration = 600f;
 
-    public GameState State { get; private set; }
+    public IReadOnlyReactiveProperty<GameState> State => _state;
+    private readonly ReactiveProperty<GameState> _state = new ReactiveProperty<GameState>(GameState.Lobby);
 
-    [Inject] private TreasureGenerator _treasures;
+    [Inject] private GolemGenerator _golemsGen;
+    [Inject] private TreasureGenerator _treasureGen;
     [Inject] private LobbyManager _lobby;
+    [Inject] private TeamBase[] _teams;
+
     private CancellationTokenSource _cts;
-
-    private void Start()
-    {
-        Time.timeScale = 0;
-        _lobby.AllReady
-            .Where(x => x == true)
-            .Subscribe(_ =>
-            {
-                if (State == GameState.Lobby)
-                    StartMatch();
-            })
-            .AddTo(this);
-    }
-
-    public void EnterMenu()
-    {
-        State = GameState.Menu;
-        Debug.Log("MENU");
-    }
 
     public void StartLobby()
     {
-        State = GameState.Lobby;
-        Debug.Log("LOBBY: waiting teams...");
+        _state.Value = GameState.Lobby;
+        Debug.Log("Лобби. Ожидание игроков");
+    }
+
+    public void ResetToLobby()
+    {
+        _cts?.Cancel();
+        _state.Value = GameState.Lobby;
     }
 
     public void StartMatch()
     {
-        if (State != GameState.Lobby) return;
+        if (_state.Value != GameState.Lobby || !_lobby.AllReady.Value)
+            return;
 
-        State = GameState.InGame;
-        Debug.Log("MATCH STARTED");
+        _state.Value = GameState.InGame;
+        Debug.Log("Матч начался");
 
         _cts?.Cancel();
         _cts = new CancellationTokenSource();
-        Time.timeScale = 1;
+
         RunMatchLoop(_cts.Token).Forget();
+    }
+
+    public void ResetMatch()
+    {
+        if (_state.Value != GameState.Lobby && _state.Value != GameState.Finished || !_lobby.AllReady.Value)
+            return;
+
+        foreach(var team in _teams)
+        {
+            team.ResetTeam();
+        }
+
+        _treasureGen.Rebuild();
+        _golemsGen.Rebuild();
+        ResetToLobby();
     }
 
     private async UniTaskVoid RunMatchLoop(CancellationToken token)
@@ -61,15 +68,15 @@ public class GameFlowManager : MonoBehaviour
 
         while (!token.IsCancellationRequested)
         {
-            await UniTask.Yield(PlayerLoopTiming.Update);
+            await UniTask.Yield(PlayerLoopTiming.FixedUpdate);
 
-            if (State != GameState.InGame)
+            if (_state.Value != GameState.InGame)
                 break;
 
-            time += Time.deltaTime;
+            time += Time.fixedDeltaTime;
 
             bool timeOver = time >= _matchDuration;
-            bool noTreasures = _treasures.Objects.Count == 0;
+            bool noTreasures = _treasureGen.Objects.Count == 0;
 
             if (timeOver || noTreasures)
             {
@@ -81,33 +88,37 @@ public class GameFlowManager : MonoBehaviour
 
     public void EndMatch()
     {
-        if (State == GameState.Finished) return;
+        if (_state.Value == GameState.Finished)
+            return;
 
-        State = GameState.Finished;
-        Debug.Log("MATCH FINISHED");
+        _state.Value = GameState.Finished;
+        Debug.Log("Матч закончился");
 
         _cts?.Cancel();
-        Time.timeScale = 0;
+
         ShowResults().Forget();
+    }
+
+    public string GetWinnerName()
+    {
+        var winner = _teams.OrderByDescending(t => t.Points).FirstOrDefault();
+        if (winner == null)
+            return "Ничья";
+
+        if (_teams.Length > 1 && _teams.All(t => t.Points == _teams[0].Points))
+            return "Ничья";
+
+        return $"Победили {winner.Team}!";
     }
 
     private async UniTaskVoid ShowResults()
     {
-        await UniTask.Delay(3000);
-
-        ReturnToMenu();
-    }
-
-    public void ReturnToMenu()
-    {
-        State = GameState.Menu;
-        Debug.Log("BACK TO MENU");
+        await UniTask.Delay(TimeSpan.FromSeconds(3), DelayType.UnscaledDeltaTime);
     }
 }
 
 public enum GameState
 {
-    Menu,
     Lobby,
     InGame,
     Finished

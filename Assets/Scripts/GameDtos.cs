@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Net.Sockets;
 using UnityEngine;
+
 [Serializable]
 public struct Vector3Dto
 {
@@ -17,9 +19,10 @@ public struct Vector3Dto
 
     public Vector3 GetVector()
     {
-        return new Vector3(x, y, z) ;
+        return new Vector3(x, y, z);
     }
 }
+
 [Serializable]
 public class WorldStateDto
 {
@@ -43,7 +46,7 @@ public class BaseDto
 [Serializable]
 public class AgentDto
 {
-    public int agentId;
+    public string agentId;
     public string team;
     public Vector3Dto pos;
     public float weight;
@@ -76,21 +79,30 @@ public class TreasureDto
     public int value;
     public float weight;
 }
-[Serializable] public class ClientCommand { public string id; public string action; public Vector3Dto target; public string team; }
-[Serializable] public class ClientCommandBatch { public List<ClientCommand> actions; }
 
 [Serializable]
-public class AgentCommand
+public class ClientCommand
 {
-    public string id;
+    public string Id;
     public string action;
     public Vector3Dto target;
 }
 
 [Serializable]
+public class ClientCommandBatch
+{
+    public List<ClientCommand> actions = new();
+}
+
+[Serializable]
 public class JoinRequest
 {
-    public string playerId;
     public string team;
-    public bool ready;
+}
+
+public class ClientSession
+{
+    public string PlayerId;
+    public string Team;
+    public TcpClient Client;
 }

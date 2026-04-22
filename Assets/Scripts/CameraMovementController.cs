@@ -19,9 +19,6 @@ public class CameraMovementController : MonoBehaviour
 
     private void Start()
     {
-        Cursor.lockState = CursorLockMode.Locked;
-        Cursor.visible = false;
-
         _rigidbody = GetComponent<Rigidbody>();
 
         _userInput.OnMoveAsObservable

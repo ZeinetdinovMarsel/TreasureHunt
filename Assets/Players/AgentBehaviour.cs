@@ -277,4 +277,28 @@ public class AgentBehaviour : MonoBehaviour, IStunnable
             }
         }
     }
+
+    public void ResetState()
+    {
+        StopCharging();
+
+        _stealAbilityPower.Value = 0f;
+        _isStunned.Value = false;
+        _worldItem = null;
+
+        if (_agent != null)
+        {
+            _agent.isStopped = false;
+            _agent.ResetPath();
+            _agent.velocity = Vector3.zero;
+            _agent.speed = _maxSpeed;
+        }
+
+        if (_cartBeh != null)
+        {
+            _cartBeh.RemoveObjectFromCart();
+        }
+
+        ChangeMoveSpeed(0f);
+    }
 }

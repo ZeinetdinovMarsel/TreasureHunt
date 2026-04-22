@@ -15,8 +15,11 @@ public class GameInstaller : MonoInstaller
     {
         Container.Bind<GolemGenerator>().FromInstance(_golemGen).AsSingle();
         Container.Bind<TreasureGenerator>().FromInstance(_treasureGen).AsSingle();
-        Container.Bind<TeamBase>().WithId("Blue").FromInstance(_blueBase).AsCached();
-        Container.Bind<TeamBase>().WithId("Red").FromInstance(_redBase).AsCached();
+        Container.Bind<TeamBase>().WithId(_blueBase.TeamType.ToString()).FromInstance(_blueBase).AsCached();
+        Container.Bind<TeamBase>().WithId(_redBase.TeamType.ToString()).FromInstance(_redBase).AsCached();
+        Container.Bind<TeamBase>().FromInstance(_blueBase).AsCached();
+        Container.Bind<TeamBase>().FromInstance(_redBase).AsCached();
+
         Container.Bind<NetworkServer>().FromInstance(_networkServer).AsCached();
         Container.Bind<GameFlowManager>().FromInstance(_gameFlowManager).AsCached();
         Container.Bind<LobbyManager>().FromInstance(_lobbyManager).AsCached();

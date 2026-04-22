@@ -8,6 +8,7 @@ using UnityEngine.AI;
 using Zenject;
 
 public enum State { Patrolling, Chasing, Attacking }
+
 [RequireComponent(typeof(NavMeshAgent))]
 public class EnemyAI : MonoBehaviour
 {
@@ -16,59 +17,49 @@ public class EnemyAI : MonoBehaviour
 
     [Inject] private NavMeshAgent _agent;
 
-
     private IStunnable _currentTarget;
     private CompositeDisposable _disposables = new();
+
     private CancellationTokenSource _attackCts;
+    private CancellationTokenSource _forgetCts;
 
     private ReactiveProperty<State> _currentState = new(State.Patrolling);
     private bool _isAttacking;
-
     private readonly Collider[] _detectionBuffer = new Collider[5];
 
     public IObservable<Unit> OnAttack => _onAttack;
     private Subject<Unit> _onAttack = new();
     private EnemyAnimationBehaviour _anim;
 
-    private CancellationTokenSource _forgetCts;
     private bool _isForgetting;
     [SerializeField] private bool _isWaiting;
     private Vector3 _initialPosition;
 
     public float CurrentSpeed => _agent != null ? _agent.speed : 0f;
 
-    public string CurrentState
+    public string CurrentState => _currentState.Value switch
     {
-        get
-        {
-            return _currentState.Value switch
-            {
-                State.Patrolling => "Patrol",
-                State.Chasing => "Chase",
-                State.Attacking => "Attack",
-                _ => "Unknown"
-            };
-        }
-    }
+        State.Patrolling => "Patrol",
+        State.Chasing => "Chase",
+        State.Attacking => "Attack",
+        _ => "Unknown"
+    };
+
     public int? TargetAgentId
     {
         get
         {
-            if (_currentTarget == null) return null;
-
             if (_currentTarget is AgentBehaviour agent)
             {
                 if (int.TryParse(agent.AgentId, out var id))
                     return id;
             }
-
             return null;
         }
     }
 
     private void Awake()
     {
-        _attackCts = new CancellationTokenSource();
         _initialPosition = transform.position;
     }
 
@@ -76,6 +67,7 @@ public class EnemyAI : MonoBehaviour
     {
         _agent.speed = _settings.PatrolSpeed;
         _anim = GetComponent<EnemyAnimationBehaviour>();
+
         _anim.OnAttackHit
            .Subscribe(_ => ApplyDamage())
            .AddTo(_disposables);
@@ -99,7 +91,7 @@ public class EnemyAI : MonoBehaviour
         switch (_currentState.Value)
         {
             case State.Patrolling:
-                UpdatePatrol();
+                UpdatePatrol().Forget();
                 if (_currentTarget != null)
                     _currentState.Value = State.Chasing;
                 break;
@@ -135,7 +127,6 @@ public class EnemyAI : MonoBehaviour
                 }
             }
         }
-
         _currentTarget = bestTarget;
     }
 
@@ -159,27 +150,26 @@ public class EnemyAI : MonoBehaviour
 
     private Vector3 GetTargetPos() => ((MonoBehaviour)_currentTarget).transform.position;
 
-
     private void ApplyDamage()
     {
         if (_currentTarget == null) return;
 
         if (_currentTarget is AgentBehaviour victim)
         {
-            victim.ApplyStunAsync(victim.GetCancellationTokenOnDestroy())
-                  .Forget();
+            victim.ApplyStunAsync(victim.GetCancellationTokenOnDestroy()).Forget();
         }
 
         StartForgetTargetAsync().Forget();
     }
+
     private async UniTaskVoid StartForgetTargetAsync()
     {
         _forgetCts?.Cancel();
         _forgetCts?.Dispose();
-        _forgetCts = new CancellationTokenSource();
+
+        _forgetCts = CancellationTokenSource.CreateLinkedTokenSource(this.GetCancellationTokenOnDestroy());
 
         _isForgetting = true;
-
         _currentTarget = null;
         _currentState.Value = State.Patrolling;
 
@@ -190,41 +180,63 @@ public class EnemyAI : MonoBehaviour
                 cancellationToken: _forgetCts.Token
             );
         }
-        catch (OperationCanceledException) { }
-
-        _isForgetting = false;
+        catch (OperationCanceledException) { return; }
+        finally
+        {
+            _isForgetting = false;
+        }
     }
+
     private async UniTaskVoid AttackSequenceAsync()
     {
-        if (_currentTarget == null) return;
+        if (_currentTarget == null || _isAttacking) return;
+
+        _attackCts?.Cancel();
+        _attackCts?.Dispose();
+        _attackCts = CancellationTokenSource.CreateLinkedTokenSource(this.GetCancellationTokenOnDestroy());
 
         _isAttacking = true;
         _agent.isStopped = true;
 
         transform.LookAt(GetTargetPos());
-
         _onAttack.OnNext(Unit.Default);
 
-        await UniTask.Delay(TimeSpan.FromSeconds(_settings.AttackCooldown), cancellationToken: _attackCts.Token);
-
-        _agent.isStopped = false;
-        _isAttacking = false;
+        try
+        {
+            await UniTask.Delay(TimeSpan.FromSeconds(_settings.AttackCooldown), cancellationToken: _attackCts.Token);
+        }
+        catch (OperationCanceledException) { return; }
+        finally
+        {
+            if (_agent != null) _agent.isStopped = false;
+            _isAttacking = false;
+        }
     }
 
-    private async void UpdatePatrol()
+    private async UniTaskVoid UpdatePatrol()
     {
-        if (!_isWaiting && !_agent.pathPending && _agent.remainingDistance <= _agent.stoppingDistance)
+        if (_agent != null && !_isWaiting && !_agent.pathPending && _agent.remainingDistance <= _agent.stoppingDistance)
         {
             await WaitAtPoint();
-            _agent.SetDestination(GetRandomNavMeshPoint());
+            if (_agent != null) _agent.SetDestination(GetRandomNavMeshPoint());
         }
     }
 
     private async UniTask WaitAtPoint()
     {
         _isWaiting = true;
-        await UniTask.Delay(TimeSpan.FromSeconds(UnityEngine.Random.Range(1f, 3f)));
-        _isWaiting = false;
+        try
+        {
+            await UniTask.Delay(
+                TimeSpan.FromSeconds(UnityEngine.Random.Range(1f, 3f)),
+                cancellationToken: this.GetCancellationTokenOnDestroy()
+            );
+        }
+        catch (OperationCanceledException) { }
+        finally
+        {
+            _isWaiting = false;
+        }
     }
 
     private Vector3 GetRandomNavMeshPoint()
@@ -232,17 +244,16 @@ public class EnemyAI : MonoBehaviour
         for (int i = 0; i < 10; i++)
         {
             Vector3 random = _initialPosition + UnityEngine.Random.insideUnitSphere * _settings.PatrolRadius;
-
             if (NavMesh.SamplePosition(random, out var hit, 5f, NavMesh.AllAreas))
                 return hit.position;
         }
-
         return _initialPosition;
     }
 
     private void OnStateChanged(State newState)
     {
-        _agent.speed = (newState == State.Chasing) ? _settings.ChaseSpeed : _settings.PatrolSpeed;
+        if (_agent != null)
+            _agent.speed = (newState == State.Chasing) ? _settings.ChaseSpeed : _settings.PatrolSpeed;
     }
 
     private void OnDestroy()
@@ -259,6 +270,7 @@ public class EnemyAI : MonoBehaviour
 #if UNITY_EDITOR
     private void OnDrawGizmosSelected()
     {
+        if (_settings == null) return;
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(transform.position, _settings.DetectionRange);
 

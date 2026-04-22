@@ -9,8 +9,6 @@ public class CartBehaviour : MonoBehaviour
     private ItemData _storedItem;
     private WorldItem _storedObject;
 
-
-
     public WorldItem StoredObject => _storedObject;
     public ReactiveProperty<float> Weight { get; private set; } = new FloatReactiveProperty(0f);
 
@@ -42,13 +40,14 @@ public class CartBehaviour : MonoBehaviour
 
             Tween.StopAll();
 
-            Tween.Scale(obj.transform, 0, 0.5f, Ease.InOutQuad).OnComplete(() =>
-            {
-                if (obj != null && obj.MainObject != null)
+            Tween.Scale(obj.transform, 0, 0.5f, Ease.InOutQuad)
+                .OnComplete(() =>
                 {
-                    Destroy(obj.MainObject);
-                }
-            });
+                    if (obj != null && obj.MainObject != null)
+                    {
+                        Destroy(obj.MainObject);
+                    }
+                }, warnIfTargetDestroyed: false);
 
             ItemData data = _storedItem;
 
@@ -67,7 +66,7 @@ public class CartBehaviour : MonoBehaviour
         {
             var obj = _storedObject;
 
-            Tween.StopAll();
+            Tween.StopAll(obj.transform);
 
             ItemData data = _storedItem;
 
@@ -101,7 +100,7 @@ public class CartBehaviour : MonoBehaviour
         Vector3 midPoint = (startPos + endPos) / 2 + Vector3.up * height;
 
         Weight.Value = 0;
-        Tween.StopAll();
+        Tween.StopAll(obj.transform);
 
         Sequence seq = Sequence.Create();
 
