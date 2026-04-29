@@ -56,12 +56,15 @@ namespace TreasureHunt.Cameras
                 float yaw = NormalizeAngle(euler.y);
 
                 // Cinemachine PanTilt convention: TiltAxis positive = looking up. Unity Euler X
-                // is positive when looking DOWN, so flip the sign.
-                if (_panTilt.PanAxis != null)
-                    _panTilt.PanAxis.Value = ClampToRange(yaw, _panTilt.PanAxis);
+                // is positive when looking DOWN, so flip the sign. InputAxis is a value type,
+                // so write it back struct-style after editing.
+                var pan = _panTilt.PanAxis;
+                pan.Value = ClampToRange(yaw, pan);
+                _panTilt.PanAxis = pan;
 
-                if (_panTilt.TiltAxis != null)
-                    _panTilt.TiltAxis.Value = ClampToRange(-pitch, _panTilt.TiltAxis);
+                var tilt = _panTilt.TiltAxis;
+                tilt.Value = ClampToRange(-pitch, tilt);
+                _panTilt.TiltAxis = tilt;
             }
             else
             {
