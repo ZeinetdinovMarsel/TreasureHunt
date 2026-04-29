@@ -1,3 +1,4 @@
+using TreasureHunt.Cameras;
 using UniRx;
 using UniRx.Triggers;
 using Unity.Cinemachine;
@@ -11,6 +12,7 @@ public class CameraMovementController : MonoBehaviour
 
     [Inject(Id = "UserCam")] private CinemachineCamera _userCamera;
     [Inject] private UserInputManager _userInput;
+    [Inject] private ICameraModeService _cameraMode;
 
     private Rigidbody _rigidbody;
     private Vector2 _currentInput;
@@ -40,6 +42,7 @@ public class CameraMovementController : MonoBehaviour
 
     private void ApplyMovement()
     {
+        if (_cameraMode != null && _cameraMode.Mode.Value != CameraMode.FlyCam) return;
         if (_currentInput.sqrMagnitude < 0.01f && Mathf.Abs(_currentCamHeight) < 0.01f) return;
 
         Vector3 forward = _userCamera.transform.forward;
