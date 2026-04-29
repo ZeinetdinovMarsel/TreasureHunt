@@ -3,29 +3,16 @@ using UnityEngine;
 
 namespace TreasureHunt.Cameras
 {
+    /// <summary>
+    /// Returns the single rendering <see cref="Camera"/> that the CinemachineBrain owns. Both
+    /// FlyCam and TopDown live on this camera — Cinemachine just picks the live vcam by
+    /// priority and applies its lens (perspective vs orthographic) to this camera.
+    /// </summary>
     public sealed class ActiveCameraProvider : IActiveCameraProvider
     {
-        private readonly ICameraModeService _modeService;
-        private readonly TopDownCameraController _topDown;
         private Camera _brainCamera;
 
-        public ActiveCameraProvider(ICameraModeService modeService, TopDownCameraController topDown)
-        {
-            _modeService = modeService;
-            _topDown = topDown;
-        }
-
-        public Camera Active
-        {
-            get
-            {
-                if (_modeService.Mode.Value == CameraMode.TopDown && _topDown != null)
-                    return _topDown.Camera;
-
-                return ResolveBrainCamera();
-            }
-        }
-
+        public Camera Active => ResolveBrainCamera();
         public Camera BrainCamera => ResolveBrainCamera();
 
         private Camera ResolveBrainCamera()

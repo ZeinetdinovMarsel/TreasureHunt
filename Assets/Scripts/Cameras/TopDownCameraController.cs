@@ -1,15 +1,17 @@
 using PrimeTween;
 using UniRx;
 using UniRx.Triggers;
+using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace TreasureHunt.Cameras
 {
     /// <summary>
-    /// Heroes 3 style orthographic top-down camera. WASD/arrows + screen-edge panning to move,
-    /// mouse wheel to zoom. The component owns its <see cref="UnityEngine.Camera"/> child and is
-    /// instantiated by Zenject at runtime so the scene does not need to be modified.
+    /// Heroes 3 style orthographic top-down camera built on Cinemachine. WASD/arrows + screen-edge
+    /// panning to move, mouse wheel to zoom (PrimeTween-eased). The component owns its own
+    /// <see cref="CinemachineCamera"/>; switching is done by changing priorities so the existing
+    /// CinemachineBrain handles blending and lens mode (orthographic vs perspective) automatically.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class TopDownCameraController : MonoBehaviour
@@ -31,7 +33,12 @@ namespace TreasureHunt.Cameras
         [SerializeField] private float _height = 120f;
         [SerializeField] private Vector2 _bounds = new Vector2(500f, 500f);
 
-        public Camera Camera { get; private set; }
+        [Header("Cinemachine")]
+        [SerializeField] private int _activePriority = 1500;
+        [SerializeField] private int _inactivePriority = 0;
+
+        public CinemachineCamera Vcam { get; private set; }
+        public bool IsActive { get; private set; }
 
         private Tween _zoomTween;
         private float _targetOrthoSize;
@@ -40,14 +47,16 @@ namespace TreasureHunt.Cameras
         {
             _targetOrthoSize = Mathf.Clamp(_zoomDefault, _zoomMin, _zoomMax);
 
-            Camera = gameObject.GetComponent<Camera>();
-            if (Camera == null) Camera = gameObject.AddComponent<Camera>();
+            Vcam = GetComponent<CinemachineCamera>();
+            if (Vcam == null) Vcam = gameObject.AddComponent<CinemachineCamera>();
 
-            ConfigureCamera(Camera);
+            ConfigureVcam(Vcam);
+
             transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+            transform.position = new Vector3(0f, _height, 0f);
 
             this.UpdateAsObservable()
-                .Where(_ => isActiveAndEnabled && Camera != null && Camera.enabled)
+                .Where(_ => isActiveAndEnabled && IsActive)
                 .Subscribe(_ => Tick())
                 .AddTo(this);
         }
@@ -57,9 +66,11 @@ namespace TreasureHunt.Cameras
             _zoomTween.Stop();
         }
 
-        public void SetEnabled(bool value)
+        public void SetActive(bool value)
         {
-            if (Camera != null) Camera.enabled = value;
+            IsActive = value;
+            if (Vcam != null)
+                Vcam.Priority = value ? _activePriority : _inactivePriority;
         }
 
         public void CenterOn(Vector3 worldPosition)
@@ -67,20 +78,21 @@ namespace TreasureHunt.Cameras
             transform.position = new Vector3(worldPosition.x, _height, worldPosition.z);
         }
 
-        public void ConfigureBounds(Vector2 bounds)
-        {
-            _bounds = bounds;
-        }
+        public void ConfigureBounds(Vector2 bounds) => _bounds = bounds;
 
-        private void ConfigureCamera(Camera cam)
+        private void ConfigureVcam(CinemachineCamera vcam)
         {
-            cam.orthographic = true;
-            cam.orthographicSize = _targetOrthoSize;
-            cam.nearClipPlane = 0.3f;
-            cam.farClipPlane = _height * 4f;
-            cam.depth = 5f;
-            cam.clearFlags = CameraClearFlags.Skybox;
-            cam.enabled = false;
+            // Switch the brain camera to orthographic projection while this vcam is live.
+            var lens = vcam.Lens;
+            lens.ModeOverride = LensSettings.OverrideModes.Orthographic;
+            lens.OrthographicSize = _targetOrthoSize;
+            lens.NearClipPlane = 0.3f;
+            lens.FarClipPlane = _height * 4f;
+            vcam.Lens = lens;
+
+            vcam.Priority = _inactivePriority;
+            vcam.Follow = null;
+            vcam.LookAt = null;
         }
 
         private void Tick()
@@ -92,7 +104,8 @@ namespace TreasureHunt.Cameras
         private void ApplyMovement(float dt)
         {
             Vector2 axis = ReadMovementAxis();
-            float speed = _moveSpeed * (IsRunning() ? _runMultiplier : 1f) * Mathf.Max(1f, Camera.orthographicSize / _zoomDefault);
+            float orthoSize = Vcam.Lens.OrthographicSize;
+            float speed = _moveSpeed * (IsRunning() ? _runMultiplier : 1f) * Mathf.Max(1f, orthoSize / _zoomDefault);
 
             Vector3 delta = new Vector3(axis.x, 0f, axis.y) * speed * dt;
             Vector3 next = transform.position + delta;
@@ -107,17 +120,26 @@ namespace TreasureHunt.Cameras
         private void ApplyZoom()
         {
             float scroll = ReadScroll();
-            if (Mathf.Abs(scroll) > 0.001f)
-            {
-                _targetOrthoSize = Mathf.Clamp(_targetOrthoSize - scroll * _zoomStep, _zoomMin, _zoomMax);
-                _zoomTween.Stop();
-                _zoomTween = Tween.Custom(
-                    startValue: Camera.orthographicSize,
-                    endValue: _targetOrthoSize,
-                    duration: _zoomTweenDuration,
-                    onValueChange: v => Camera.orthographicSize = v,
-                    ease: Ease.OutCubic);
-            }
+            if (Mathf.Abs(scroll) <= 0.001f) return;
+
+            _targetOrthoSize = Mathf.Clamp(_targetOrthoSize - scroll * _zoomStep, _zoomMin, _zoomMax);
+            _zoomTween.Stop();
+
+            float startSize = Vcam.Lens.OrthographicSize;
+            _zoomTween = Tween.Custom(
+                startValue: startSize,
+                endValue: _targetOrthoSize,
+                duration: _zoomTweenDuration,
+                onValueChange: SetOrthographicSize,
+                ease: Ease.OutCubic);
+        }
+
+        private void SetOrthographicSize(float size)
+        {
+            if (Vcam == null) return;
+            var lens = Vcam.Lens;
+            lens.OrthographicSize = size;
+            Vcam.Lens = lens;
         }
 
         private Vector2 ReadMovementAxis()
@@ -133,9 +155,7 @@ namespace TreasureHunt.Cameras
             }
 
             if (_edgePanEnabled && axis.sqrMagnitude < 0.01f)
-            {
                 axis += ReadEdgePan();
-            }
 
             if (axis.sqrMagnitude > 1f) axis.Normalize();
             return axis;

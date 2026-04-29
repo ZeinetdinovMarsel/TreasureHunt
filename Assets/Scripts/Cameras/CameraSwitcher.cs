@@ -1,5 +1,4 @@
 using UniRx;
-using UniRx.Triggers;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -9,37 +8,34 @@ namespace TreasureHunt.Cameras
 {
     /// <summary>
     /// Listens for the toggle key and translates <see cref="ICameraModeService"/> changes into
-    /// concrete camera state: enables the top-down camera and lowers the FlyCam priority while
-    /// it is active, then restores it when going back.
+    /// concrete Cinemachine priority changes. There is only one rendering camera in the scene
+    /// (the CinemachineBrain camera); switching modes simply boosts whichever vcam should be
+    /// live so the brain blends to it.
     /// </summary>
     public sealed class CameraSwitcher : IInitializable, ITickable
     {
         private const int ActivePriority = 1000;
-        private const int InactivePriority = 0;
 
         private readonly ICameraModeService _modeService;
         private readonly TopDownCameraController _topDown;
         private readonly CinemachineCamera _flyCam;
-        private readonly IActiveCameraProvider _activeCamera;
 
         private int _flyCamOriginalPriority;
 
         public CameraSwitcher(
             ICameraModeService modeService,
             TopDownCameraController topDown,
-            IActiveCameraProvider activeCamera,
             [Inject(Id = "UserCam")] CinemachineCamera flyCam)
         {
             _modeService = modeService;
             _topDown = topDown;
-            _activeCamera = activeCamera;
             _flyCam = flyCam;
         }
 
         public void Initialize()
         {
             if (_flyCam != null)
-                _flyCamOriginalPriority = _flyCam.Priority.Value;
+                _flyCamOriginalPriority = Mathf.Max(_flyCam.Priority.Value, ActivePriority);
 
             _modeService.Mode
                 .Subscribe(ApplyMode)
@@ -59,17 +55,13 @@ namespace TreasureHunt.Cameras
         {
             bool topDownActive = mode == CameraMode.TopDown;
 
-            if (_flyCam != null)
-                _flyCam.Priority = topDownActive ? InactivePriority : Mathf.Max(ActivePriority, _flyCamOriginalPriority);
-
-            _topDown.SetEnabled(topDownActive);
-
-            var brain = (_activeCamera as ActiveCameraProvider)?.BrainCamera;
-            if (brain != null)
-                brain.enabled = !topDownActive;
-
             if (topDownActive && _flyCam != null)
                 _topDown.CenterOn(_flyCam.transform.position);
+
+            _topDown.SetActive(topDownActive);
+
+            if (_flyCam != null)
+                _flyCam.Priority = topDownActive ? 0 : _flyCamOriginalPriority;
         }
     }
 }
