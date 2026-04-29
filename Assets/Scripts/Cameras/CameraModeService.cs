@@ -14,11 +14,11 @@ namespace TreasureHunt.Cameras
             _mode.Value = mode;
         }
 
-        public void Toggle()
+        public void Toggle() => ToggleBetween(CameraMode.FlyCam, CameraMode.TopDown);
+
+        public void ToggleBetween(CameraMode a, CameraMode b)
         {
-            _mode.Value = _mode.Value == CameraMode.FlyCam
-                ? CameraMode.TopDown
-                : CameraMode.FlyCam;
+            _mode.Value = _mode.Value == a ? b : a;
         }
     }
 }

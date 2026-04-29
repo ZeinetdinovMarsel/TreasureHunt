@@ -42,6 +42,7 @@ public class GameInstaller : MonoInstaller
 
         Container.Bind<IActiveCameraProvider>().To<ActiveCameraProvider>().AsSingle();
 
+        Container.BindInterfacesAndSelfTo<AgentObserverService>().AsSingle().NonLazy();
         Container.BindInterfacesAndSelfTo<CameraSwitcher>().AsSingle().NonLazy();
         Container.BindInterfacesAndSelfTo<MinimapIconRegistrar>().AsSingle().NonLazy();
     }
