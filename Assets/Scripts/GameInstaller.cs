@@ -49,6 +49,7 @@ public class GameInstaller : MonoInstaller
         Container.BindInterfacesAndSelfTo<CameraSwitcher>().AsSingle().NonLazy();
         Container.BindInterfacesAndSelfTo<MinimapIconRegistrar>().AsSingle().NonLazy();
         Container.BindInterfacesAndSelfTo<TerrainPerformanceTuner>().AsSingle().NonLazy();
+        Container.BindInterfacesAndSelfTo<SceneRenderingTuner>().AsSingle().NonLazy();
 
         Container.Bind<EntityInspectorHud>()
             .FromNewComponentOnNewGameObject()

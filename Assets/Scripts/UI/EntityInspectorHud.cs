@@ -53,6 +53,12 @@ namespace TreasureHunt.UI
 
         private void OnGUI()
         {
+            // OnGUI fires Layout + Repaint (and assorted input events) per frame. Our HUD uses
+            // explicit GUI.Label rects, so the Layout pass would only re-do the same iteration
+            // for nothing. Limiting to Repaint roughly halves the per-frame cost when there are
+            // many entities to scan.
+            if (Event.current.type != EventType.Repaint) return;
+
             EnsureStyles();
             DrawCameraHud();
             DrawNearbyEntityLabels();

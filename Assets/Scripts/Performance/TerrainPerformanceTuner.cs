@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using TreasureHunt.Cameras;
+using UniRx;
 using Unity.Cinemachine;
 using UnityEngine;
 using Zenject;
@@ -7,48 +10,84 @@ namespace TreasureHunt.Performance
     /// <summary>
     /// Runtime-only quality tuner that brings the open-world terrains into a sane budget for
     /// the gameplay camera. The scene ships with 9 terrains × treeDistance 5000 ×
-    /// detailObjectDistance 80, which on a horizon-shot easily blows past 5000 draw calls.
+    /// detailObjectDistance 80; on a horizon shot that blows past several thousand draw calls
+    /// and the CPU spends most of the frame culling and submitting tree/detail patches.
     ///
-    /// Rather than touching the scene asset (and its serialised tweaks per tile), we lower the
-    /// per-terrain LOD knobs on Awake. Values are exposed so the user can re-tune from the
-    /// inspector if a particular tile needs more reach.
+    /// Strategy:
+    ///   • on startup, cap tree/detail/basemap distances and increase heightmapPixelError;
+    ///   • subscribe to <see cref="ICameraModeService"/> and clamp tree distance to 0 while
+    ///     the player is in TopDown — at 120 m altitude trees become single pixels anyway, so
+    ///     paying their CPU+GPU cost is wasted work and was the dominant remaining culprit
+    ///     when zooming out the orthographic camera.
     /// </summary>
-    public sealed class TerrainPerformanceTuner : IInitializable
+    public sealed class TerrainPerformanceTuner : IInitializable, System.IDisposable
     {
-        // Conservative defaults that keep the world readable on a horizon shot but shave the
-        // bulk of the per-frame draw cost. Empirically each terrain contributes ~hundreds of
-        // batches at the original 5000-unit tree distance.
-        private const float TargetTreeDistance = 220f;
-        private const float TargetDetailDistance = 60f;
-        private const float TargetHeightmapError = 12f;
-        private const float TargetBasemapDistance = 400f;
+        // Conservative defaults for the 3D camera that keep the world readable on a horizon
+        // shot but shave the bulk of the per-frame draw cost.
+        private const float DefaultTreeDistance = 200f;
+        private const float DefaultDetailDistance = 50f;
+        private const float DefaultBasemapDistance = 350f;
+        private const float TargetHeightmapError = 14f;
         private const float FlyCamFarClipPlane = 350f;
 
-        private readonly CinemachineCamera _flyCam;
+        // TopDown overrides: trees/details are not meaningful from 120 m up, so cull them.
+        private const float TopDownTreeDistance = 0f;
+        private const float TopDownDetailDistance = 0f;
 
-        public TerrainPerformanceTuner([Inject(Id = "UserCam", Optional = true)] CinemachineCamera flyCam)
+        private readonly CinemachineCamera _flyCam;
+        private readonly ICameraModeService _modeService;
+        private readonly List<Terrain> _terrains = new List<Terrain>();
+        private readonly CompositeDisposable _disposables = new CompositeDisposable();
+
+        public TerrainPerformanceTuner(
+            ICameraModeService modeService,
+            [Inject(Id = "UserCam", Optional = true)] CinemachineCamera flyCam)
         {
+            _modeService = modeService;
             _flyCam = flyCam;
         }
 
         public void Initialize()
         {
-            TuneTerrains();
+            CacheTerrains();
+            ApplyHeightmapError();
             TuneFlyCamFarClip();
+
+            _modeService.Mode
+                .Subscribe(ApplyModeProfile)
+                .AddTo(_disposables);
         }
 
-        private static void TuneTerrains()
+        public void Dispose() => _disposables.Dispose();
+
+        private void CacheTerrains()
         {
-            var terrains = Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None);
-            foreach (var t in terrains)
+            _terrains.Clear();
+            _terrains.AddRange(Object.FindObjectsByType<Terrain>(FindObjectsSortMode.None));
+        }
+
+        private void ApplyHeightmapError()
+        {
+            foreach (var t in _terrains)
             {
                 if (t == null) continue;
-                t.treeDistance = Mathf.Min(t.treeDistance, TargetTreeDistance);
-                t.detailObjectDistance = Mathf.Min(t.detailObjectDistance, TargetDetailDistance);
                 t.heightmapPixelError = Mathf.Max(t.heightmapPixelError, TargetHeightmapError);
-                t.basemapDistance = Mathf.Min(t.basemapDistance, TargetBasemapDistance);
-                // Cull tree billboards aggressively past the cutoff distance.
-                t.treeBillboardDistance = Mathf.Min(t.treeBillboardDistance, TargetTreeDistance * 0.6f);
+                t.basemapDistance = Mathf.Min(t.basemapDistance, DefaultBasemapDistance);
+            }
+        }
+
+        private void ApplyModeProfile(CameraMode mode)
+        {
+            bool topDown = mode == CameraMode.TopDown;
+            float treeDistance = topDown ? TopDownTreeDistance : DefaultTreeDistance;
+            float detailDistance = topDown ? TopDownDetailDistance : DefaultDetailDistance;
+
+            foreach (var t in _terrains)
+            {
+                if (t == null) continue;
+                t.treeDistance = treeDistance;
+                t.detailObjectDistance = detailDistance;
+                t.treeBillboardDistance = treeDistance * 0.6f;
             }
         }
 
