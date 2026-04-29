@@ -21,6 +21,7 @@ namespace TreasureHunt.Cameras
         [SerializeField] private float _runMultiplier = 2f;
         [SerializeField] private float _edgePanThicknessPx = 16f;
         [SerializeField] private bool _edgePanEnabled = true;
+        [SerializeField] private bool _dragPanEnabled = true;
 
         [Header("Zoom")]
         [SerializeField] private float _zoomMin = 8f;
@@ -42,6 +43,8 @@ namespace TreasureHunt.Cameras
 
         private Tween _zoomTween;
         private float _targetOrthoSize;
+        private bool _isDragging;
+        private Vector2 _dragLastMouse;
 
         private void Awake()
         {
@@ -97,7 +100,11 @@ namespace TreasureHunt.Cameras
 
         private void Tick()
         {
-            ApplyMovement(Time.unscaledDeltaTime);
+            // Drag-pan takes precedence over keyboard/edge so the two don't fight if the user
+            // is e.g. holding the mouse on the screen edge.
+            bool dragged = _dragPanEnabled && ApplyDragPan();
+            if (!dragged)
+                ApplyMovement(Time.unscaledDeltaTime);
             ApplyZoom();
         }
 
@@ -108,12 +115,52 @@ namespace TreasureHunt.Cameras
             float speed = _moveSpeed * (IsRunning() ? _runMultiplier : 1f) * Mathf.Max(1f, orthoSize / _zoomDefault);
 
             Vector3 delta = new Vector3(axis.x, 0f, axis.y) * speed * dt;
-            Vector3 next = transform.position + delta;
+            ApplyDelta(delta);
+        }
 
+        private bool ApplyDragPan()
+        {
+            var mouse = Mouse.current;
+            if (mouse == null) return false;
+
+            if (mouse.leftButton.wasPressedThisFrame)
+            {
+                _isDragging = true;
+                _dragLastMouse = mouse.position.ReadValue();
+                return true;
+            }
+
+            if (!mouse.leftButton.isPressed)
+            {
+                _isDragging = false;
+                return false;
+            }
+
+            if (!_isDragging) return false;
+
+            Vector2 cur = mouse.position.ReadValue();
+            Vector2 delta = cur - _dragLastMouse;
+            _dragLastMouse = cur;
+
+            // Convert pixel delta into world-space delta. For an orthographic camera looking
+            // straight down, one screen pixel = (orthoSize * 2) / Screen.height world units
+            // along Y, and the same scaled by aspect ratio along X. Negate so the world drags
+            // with the cursor (Heroes-style / Google Maps).
+            float orthoSize = Vcam.Lens.OrthographicSize;
+            float screenH = Mathf.Max(1f, Screen.height);
+            float worldPerPixel = (orthoSize * 2f) / screenH;
+            Vector3 worldDelta = new Vector3(-delta.x, 0f, -delta.y) * worldPerPixel;
+
+            ApplyDelta(worldDelta);
+            return true;
+        }
+
+        private void ApplyDelta(Vector3 delta)
+        {
+            Vector3 next = transform.position + delta;
             next.x = Mathf.Clamp(next.x, -_bounds.x * 0.5f, _bounds.x * 0.5f);
             next.z = Mathf.Clamp(next.z, -_bounds.y * 0.5f, _bounds.y * 0.5f);
             next.y = _height;
-
             transform.position = next;
         }
 

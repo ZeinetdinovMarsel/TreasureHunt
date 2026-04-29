@@ -112,17 +112,32 @@ namespace TreasureHunt.UI
 
         private void DrawCameraHud()
         {
+            var mode = _modeService.Mode.Value;
             _builder.Clear();
-            _builder.Append("<b>Camera:</b> ").Append(_modeService.Mode.Value);
 
-            if (_modeService.Mode.Value == CameraMode.Observer)
+            // Coloured mode badge — picks at a glance which view is live without reading text.
+            string color = mode switch
+            {
+                CameraMode.FlyCam => "#5fb3ff",
+                CameraMode.TopDown => "#7ddc7d",
+                CameraMode.Observer => "#ff8a4a",
+                _ => "#cccccc"
+            };
+            _builder.Append("<b><color=").Append(color).Append(">[")
+                .Append(ModeName(mode)).Append("]</color></b>  ")
+                .Append(ModeSubtitle(mode));
+
+            if (mode == CameraMode.Observer)
             {
                 var agent = _observerService.CurrentAgent;
-                _builder.Append("\n<b>Watching:</b> ");
+                _builder.Append("\n<b>Цель:</b> ");
                 if (agent != null)
                 {
+                    string teamColor = TeamColor(agent.TeamId);
                     _builder.Append("agent_").Append(SafeStr(agent.AgentId))
-                        .Append(" (").Append(SafeStr(agent.TeamId)).Append(')')
+                        .Append(" <color=").Append(teamColor).Append('>')
+                        .Append('(').Append(SafeStr(agent.TeamId)).Append(')')
+                        .Append("</color>")
                         .Append("  [")
                         .Append(_observerService.CurrentIndex.Value + 1)
                         .Append('/').Append(_observerService.Count.Value).Append(']');
@@ -131,22 +146,47 @@ namespace TreasureHunt.UI
                 {
                     _builder.Append("—");
                 }
-                _builder.Append("\n<size=12>Q/E — switch agent · Space — free fly</size>");
+                _builder.Append("\n<size=12><color=#aaaaaa>Q/E — другой агент · Space — свободный полёт</color></size>");
             }
-            else if (_modeService.Mode.Value == CameraMode.FlyCam)
+            else if (mode == CameraMode.FlyCam)
             {
-                _builder.Append("\n<size=12>Tab — minimap · Space — observer</size>");
+                _builder.Append("\n<size=12><color=#aaaaaa>Tab — карта · Space — наблюдатель · ЛКМ-перетаск. в карте</color></size>");
             }
             else // TopDown
             {
-                _builder.Append("\n<size=12>Tab — back to fly · WASD — pan · Wheel — zoom</size>");
+                _builder.Append("\n<size=12><color=#aaaaaa>Tab — выйти · WASD — двигать · ЛКМ — тащить · колесо — масштаб · наведи на иконку для деталей</color></size>");
             }
 
             var content = new GUIContent(_builder.ToString());
             Vector2 size = _hudStyle.CalcSize(content);
-            size.x = Mathf.Max(size.x, 220f);
+            size.x = Mathf.Max(size.x, 260f);
             GUI.Label(new Rect(12f, 12f, size.x, size.y + 4f), content, _hudStyle);
         }
+
+        private static string ModeName(CameraMode mode) => mode switch
+        {
+            CameraMode.FlyCam => "Полёт",
+            CameraMode.TopDown => "Карта",
+            CameraMode.Observer => "Наблюдатель",
+            _ => mode.ToString()
+        };
+
+        private static string ModeSubtitle(CameraMode mode) => mode switch
+        {
+            CameraMode.FlyCam => "свободный 3D-обзор",
+            CameraMode.TopDown => "ортография сверху",
+            CameraMode.Observer => "следим за агентом",
+            _ => string.Empty
+        };
+
+        private static string TeamColor(string teamId) => teamId switch
+        {
+            "blue" => "#5fb3ff",
+            "Blue" => "#5fb3ff",
+            "red" => "#ff5f5f",
+            "Red" => "#ff5f5f",
+            _ => "#cccccc"
+        };
 
         private void DrawNearbyEntityLabels()
         {
@@ -194,11 +234,7 @@ namespace TreasureHunt.UI
             if (!IsInRange(camPos, worldPos)) return;
 
             _builder.Clear();
-            _builder.Append("<b>Agent ").Append(SafeStr(agent.AgentId)).Append("</b>")
-                .Append("\nteam: ").Append(SafeStr(agent.TeamId))
-                .Append("\npos: ").Append(FormatPos(agent.transform.position))
-                .Append("\nhasTreasure: ").Append(agent.HasTreasure)
-                .Append("\nisStunned: ").Append(agent.IsStunned.Value);
+            BuildAgentLabel(agent);
 
             DrawLabelAtWorldPosition(cam, worldPos, _builder.ToString());
         }
@@ -213,11 +249,7 @@ namespace TreasureHunt.UI
             if (!IsInRange(camPos, worldPos)) return;
 
             _builder.Clear();
-            _builder.Append("<b>Golem</b>")
-                .Append("\nid: ").Append(host.GetInstanceID())
-                .Append("\npos: ").Append(FormatPos(ai.transform.position))
-                .Append("\nspeed: ").Append(ai.CurrentSpeed.ToString("0.0"))
-                .Append("\nstate: ").Append(ai.CurrentState);
+            BuildGolemLabel(host, ai);
 
             DrawLabelAtWorldPosition(cam, worldPos, _builder.ToString());
         }
@@ -232,10 +264,7 @@ namespace TreasureHunt.UI
             if (!IsInRange(camPos, worldPos)) return;
 
             _builder.Clear();
-            _builder.Append("<b>Treasure</b>")
-                .Append("\nid: ").Append(host.GetInstanceID())
-                .Append("\npos: ").Append(FormatPos(host.transform.position))
-                .Append("\nisPicked: ").Append(item.IsPicked);
+            BuildTreasureLabel(host);
 
             DrawLabelAtWorldPosition(cam, worldPos, _builder.ToString());
         }
@@ -333,30 +362,37 @@ namespace TreasureHunt.UI
 
         private void BuildAgentLabel(AgentBehaviour agent)
         {
-            _builder.Append("<b>Agent ").Append(SafeStr(agent.AgentId)).Append("</b>")
-                .Append("\nteam: ").Append(SafeStr(agent.TeamId))
-                .Append("\npos: ").Append(FormatPos(agent.transform.position))
-                .Append("\nhasTreasure: ").Append(agent.HasTreasure)
-                .Append("\nisStunned: ").Append(agent.IsStunned.Value);
+            string teamColor = TeamColor(agent.TeamId);
+            // Header is in Russian; the field names match the keys NetworkServer serialises so
+            // the panel doubles as a "what's on the wire" view.
+            _builder.Append("<b><color=").Append(teamColor).Append(">Агент ")
+                .Append(SafeStr(agent.AgentId)).Append("</color></b>")
+                .Append("\n<color=#aaaaaa>team:</color> ").Append(SafeStr(agent.TeamId))
+                .Append("\n<color=#aaaaaa>pos:</color> ").Append(FormatPos(agent.transform.position))
+                .Append("\n<color=#aaaaaa>hasTreasure:</color> ").Append(BoolMark(agent.HasTreasure))
+                .Append("\n<color=#aaaaaa>isStunned:</color> ").Append(BoolMark(agent.IsStunned.Value));
         }
 
         private void BuildGolemLabel(GameObject host, EnemyAI ai)
         {
-            _builder.Append("<b>Golem</b>")
-                .Append("\nid: ").Append(host.GetInstanceID())
-                .Append("\npos: ").Append(FormatPos(ai.transform.position))
-                .Append("\nspeed: ").Append(ai.CurrentSpeed.ToString("0.0"))
-                .Append("\nstate: ").Append(ai.CurrentState);
+            _builder.Append("<b><color=#d49b6b>Голем</color></b>")
+                .Append("\n<color=#aaaaaa>id:</color> ").Append(host.GetInstanceID())
+                .Append("\n<color=#aaaaaa>pos:</color> ").Append(FormatPos(ai.transform.position))
+                .Append("\n<color=#aaaaaa>currentSpeed:</color> ").Append(ai.CurrentSpeed.ToString("0.0"))
+                .Append("\n<color=#aaaaaa>state:</color> ").Append(ai.CurrentState);
         }
 
         private void BuildTreasureLabel(GameObject host)
         {
             var item = host.GetComponent<WorldItem>();
-            _builder.Append("<b>Treasure</b>")
-                .Append("\nid: ").Append(host.GetInstanceID())
-                .Append("\npos: ").Append(FormatPos(host.transform.position));
-            if (item != null) _builder.Append("\nisPicked: ").Append(item.IsPicked);
+            _builder.Append("<b><color=#ffd866>Сокровище</color></b>")
+                .Append("\n<color=#aaaaaa>id:</color> ").Append(host.GetInstanceID())
+                .Append("\n<color=#aaaaaa>pos:</color> ").Append(FormatPos(host.transform.position));
+            if (item != null) _builder.Append("\n<color=#aaaaaa>isPicked:</color> ").Append(BoolMark(item.IsPicked));
         }
+
+        private static string BoolMark(bool value) =>
+            value ? "<color=#7ddc7d>true</color>" : "<color=#888888>false</color>";
 
         private void DrawLabelAtScreenPoint(Vector3 screen, string text)
         {

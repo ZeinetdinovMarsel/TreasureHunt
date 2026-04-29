@@ -34,6 +34,9 @@ namespace TreasureHunt.Cameras
 
         private int _flyCamOriginalPriority;
         private CameraMode _previousMode = CameraMode.FlyCam;
+        private CursorLockMode _savedCursorLock;
+        private bool _savedCursorVisible;
+        private bool _cursorOverridden;
 
         public CameraSwitcher(
             ICameraModeService modeService,
@@ -119,7 +122,33 @@ namespace TreasureHunt.Cameras
             if (_flyCam != null)
                 _flyCam.Priority = flyCamActive ? _flyCamOriginalPriority : 0;
 
+            ApplyCursorState(mode);
             _previousMode = mode;
+        }
+
+        private void ApplyCursorState(CameraMode mode)
+        {
+            // TopDown is a Heroes-style strategy view — the user needs the cursor at all times
+            // to drag-pan, hover the inspector and click icons. Save whatever the rest of the
+            // game had configured before the switch and restore it on exit so we don't break
+            // FPS-style FlyCam aiming.
+            if (mode == CameraMode.TopDown)
+            {
+                if (!_cursorOverridden)
+                {
+                    _savedCursorLock = Cursor.lockState;
+                    _savedCursorVisible = Cursor.visible;
+                    _cursorOverridden = true;
+                }
+                Cursor.lockState = CursorLockMode.None;
+                Cursor.visible = true;
+            }
+            else if (_cursorOverridden)
+            {
+                Cursor.lockState = _savedCursorLock;
+                Cursor.visible = _savedCursorVisible;
+                _cursorOverridden = false;
+            }
         }
     }
 }
