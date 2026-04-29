@@ -73,6 +73,12 @@ namespace TreasureHunt.Minimap
                 return;
             }
 
+            // Skip per-frame work entirely when the icon is hidden — billboard maths and Vector3
+            // distance calls add up quickly when the scene has 30+ icons that are only visible
+            // in TopDown mode.
+            EnsureRenderer();
+            if (_renderer != null && !_renderer.enabled) return;
+
             transform.position = _target.position + Vector3.up * _heightOffset;
 
             Camera cam = _cameraProvider != null ? _cameraProvider.Active : Camera.main;

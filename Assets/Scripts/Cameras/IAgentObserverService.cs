@@ -16,6 +16,9 @@ namespace TreasureHunt.Cameras
         /// <summary>Index of the currently observed agent, or -1 when none.</summary>
         IReadOnlyReactiveProperty<int> CurrentIndex { get; }
 
+        /// <summary>The currently observed agent (null when none).</summary>
+        AgentBehaviour CurrentAgent { get; }
+
         void Next();
         void Previous();
         void SelectIndex(int index);
