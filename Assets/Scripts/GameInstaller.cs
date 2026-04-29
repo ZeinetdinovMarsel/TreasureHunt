@@ -1,3 +1,5 @@
+using TreasureHunt.Cameras;
+using TreasureHunt.Minimap;
 using UnityEngine;
 using Zenject;
 
@@ -23,5 +25,24 @@ public class GameInstaller : MonoInstaller
         Container.Bind<NetworkServer>().FromInstance(_networkServer).AsCached();
         Container.Bind<GameFlowManager>().FromInstance(_gameFlowManager).AsCached();
         Container.Bind<LobbyManager>().FromInstance(_lobbyManager).AsCached();
+
+        InstallCameraAndMinimap();
+    }
+
+    private void InstallCameraAndMinimap()
+    {
+        Container.Bind<ICameraModeService>().To<CameraModeService>().AsSingle();
+        Container.Bind<IconTextureFactory>().AsSingle();
+
+        Container.Bind<TopDownCameraController>()
+            .FromNewComponentOnNewGameObject()
+            .WithGameObjectName("TopDownCamera")
+            .AsSingle()
+            .NonLazy();
+
+        Container.Bind<IActiveCameraProvider>().To<ActiveCameraProvider>().AsSingle();
+
+        Container.BindInterfacesAndSelfTo<CameraSwitcher>().AsSingle().NonLazy();
+        Container.BindInterfacesAndSelfTo<MinimapIconRegistrar>().AsSingle().NonLazy();
     }
 }
