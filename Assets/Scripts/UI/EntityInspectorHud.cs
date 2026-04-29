@@ -147,9 +147,13 @@ namespace TreasureHunt.UI
             Camera cam = _cameraProvider != null ? _cameraProvider.Active : Camera.main;
             if (cam == null) return;
 
-            // Skip in TopDown — too cluttered and the orthographic projection makes labels
-            // overlap at typical zoom levels.
-            if (_modeService.Mode.Value == CameraMode.TopDown) return;
+            // TopDown uses hover instead of proximity — at 120m altitude nothing is "close",
+            // and distance-based labels would clutter the minimap view anyway.
+            if (_modeService.Mode.Value == CameraMode.TopDown)
+            {
+                DrawHoverInspector(cam);
+                return;
+            }
 
             Vector3 camPos = cam.transform.position;
 
@@ -233,6 +237,131 @@ namespace TreasureHunt.UI
         private static bool IsInRange(Vector3 camPos, Vector3 worldPos)
         {
             return (worldPos - camPos).sqrMagnitude <= ProximityRangeSqr;
+        }
+
+        private void DrawHoverInspector(Camera cam)
+        {
+            // OnGUI uses top-left origin; convert mouse to bottom-left screen for matching against
+            // Camera.WorldToScreenPoint values.
+            var mouse = UnityEngine.InputSystem.Mouse.current;
+            if (mouse == null) return;
+            Vector2 mouseScreen = mouse.position.ReadValue();
+
+            const float HoverRadiusPx = 28f;
+            const float HoverRadiusSqr = HoverRadiusPx * HoverRadiusPx;
+
+            // Iterate all entities, find the closest one to the mouse and draw a single panel
+            // for it. Picking only one keeps the screen readable when icons overlap.
+            float bestSqr = HoverRadiusSqr;
+            string bestLabel = null;
+            Vector3 bestScreen = default;
+
+            if (_teams != null)
+            {
+                foreach (var team in _teams)
+                {
+                    if (team == null) continue;
+                    foreach (var agent in team.Objects)
+                    {
+                        if (agent == null) continue;
+                        if (TryHover(cam, mouseScreen, agent.transform.position + Vector3.up * 0.5f, out var screen, out float sqr) && sqr < bestSqr)
+                        {
+                            bestSqr = sqr;
+                            bestScreen = screen;
+                            _builder.Clear();
+                            BuildAgentLabel(agent);
+                            bestLabel = _builder.ToString();
+                        }
+                    }
+                }
+            }
+
+            if (_golems != null)
+            {
+                foreach (var go in _golems.Objects)
+                {
+                    if (go == null) continue;
+                    var ai = go.GetComponentInChildren<EnemyAI>(true);
+                    if (ai == null) continue;
+                    if (TryHover(cam, mouseScreen, ai.transform.position + Vector3.up * 0.5f, out var screen, out float sqr) && sqr < bestSqr)
+                    {
+                        bestSqr = sqr;
+                        bestScreen = screen;
+                        _builder.Clear();
+                        BuildGolemLabel(go, ai);
+                        bestLabel = _builder.ToString();
+                    }
+                }
+            }
+
+            if (_treasures != null)
+            {
+                foreach (var go in _treasures.Objects)
+                {
+                    if (go == null) continue;
+                    if (TryHover(cam, mouseScreen, go.transform.position + Vector3.up * 0.5f, out var screen, out float sqr) && sqr < bestSqr)
+                    {
+                        bestSqr = sqr;
+                        bestScreen = screen;
+                        _builder.Clear();
+                        BuildTreasureLabel(go);
+                        bestLabel = _builder.ToString();
+                    }
+                }
+            }
+
+            if (bestLabel != null)
+                DrawLabelAtScreenPoint(bestScreen, bestLabel);
+        }
+
+        private static bool TryHover(Camera cam, Vector2 mouseScreen, Vector3 worldPos, out Vector3 screen, out float sqr)
+        {
+            screen = cam.WorldToScreenPoint(worldPos);
+            if (screen.z <= 0f) { sqr = float.PositiveInfinity; return false; }
+
+            float dx = screen.x - mouseScreen.x;
+            float dy = screen.y - mouseScreen.y;
+            sqr = dx * dx + dy * dy;
+            return true;
+        }
+
+        private void BuildAgentLabel(AgentBehaviour agent)
+        {
+            _builder.Append("<b>Agent ").Append(SafeStr(agent.AgentId)).Append("</b>")
+                .Append("\nteam: ").Append(SafeStr(agent.TeamId))
+                .Append("\npos: ").Append(FormatPos(agent.transform.position))
+                .Append("\nhasTreasure: ").Append(agent.HasTreasure)
+                .Append("\nisStunned: ").Append(agent.IsStunned.Value);
+        }
+
+        private void BuildGolemLabel(GameObject host, EnemyAI ai)
+        {
+            _builder.Append("<b>Golem</b>")
+                .Append("\nid: ").Append(host.GetInstanceID())
+                .Append("\npos: ").Append(FormatPos(ai.transform.position))
+                .Append("\nspeed: ").Append(ai.CurrentSpeed.ToString("0.0"))
+                .Append("\nstate: ").Append(ai.CurrentState);
+        }
+
+        private void BuildTreasureLabel(GameObject host)
+        {
+            var item = host.GetComponent<WorldItem>();
+            _builder.Append("<b>Treasure</b>")
+                .Append("\nid: ").Append(host.GetInstanceID())
+                .Append("\npos: ").Append(FormatPos(host.transform.position));
+            if (item != null) _builder.Append("\nisPicked: ").Append(item.IsPicked);
+        }
+
+        private void DrawLabelAtScreenPoint(Vector3 screen, string text)
+        {
+            var content = new GUIContent(text);
+            Vector2 size = _labelStyle.CalcSize(content);
+            float x = screen.x + 16f;
+            float y = (Screen.height - screen.y) - size.y * 0.5f;
+            // Keep the label inside the screen.
+            x = Mathf.Clamp(x, 8f, Screen.width - size.x - 8f);
+            y = Mathf.Clamp(y, 8f, Screen.height - size.y - 8f);
+            GUI.Label(new Rect(x, y, size.x, size.y), content, _labelStyle);
         }
 
         private void DrawLabelAtWorldPosition(Camera cam, Vector3 worldPos, string text)

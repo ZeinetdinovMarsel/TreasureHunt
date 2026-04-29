@@ -189,7 +189,12 @@ namespace TreasureHunt.Cameras
         {
             var mouse = Mouse.current;
             if (mouse == null) return 0f;
-            return mouse.scroll.ReadValue().y / 120f;
+            float raw = mouse.scroll.ReadValue().y;
+            if (Mathf.Abs(raw) < 0.001f) return 0f;
+            // Unity's InputSystem reports the scroll delta either as ±1 per notch (modern
+            // builds) or as ±120 (Win32 WHEEL_DELTA on older builds). Normalise both into ~±1
+            // so the configured zoom step behaves the same regardless of the platform.
+            return Mathf.Abs(raw) >= 60f ? raw / 120f : raw;
         }
     }
 }

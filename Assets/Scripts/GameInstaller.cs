@@ -1,5 +1,6 @@
 using TreasureHunt.Cameras;
 using TreasureHunt.Minimap;
+using TreasureHunt.Performance;
 using TreasureHunt.UI;
 using UnityEngine;
 using Zenject;
@@ -47,6 +48,7 @@ public class GameInstaller : MonoInstaller
         Container.BindInterfacesAndSelfTo<CinemachineFlyCamRig>().AsSingle().NonLazy();
         Container.BindInterfacesAndSelfTo<CameraSwitcher>().AsSingle().NonLazy();
         Container.BindInterfacesAndSelfTo<MinimapIconRegistrar>().AsSingle().NonLazy();
+        Container.BindInterfacesAndSelfTo<TerrainPerformanceTuner>().AsSingle().NonLazy();
 
         Container.Bind<EntityInspectorHud>()
             .FromNewComponentOnNewGameObject()
