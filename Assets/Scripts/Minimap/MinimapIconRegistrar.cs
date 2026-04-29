@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using TreasureHunt.Cameras;
 using UniRx;
 using UnityEngine;
+using UnityEngine.AI;
 using Zenject;
 
 namespace TreasureHunt.Minimap
@@ -44,6 +45,25 @@ namespace TreasureHunt.Minimap
             BindTeams();
             BindCollection(_golems.Objects, MinimapIconType.Golem, Color.clear, heightOffset: 4f);
             BindCollection(_treasures.Objects, MinimapIconType.Treasure, Color.clear, heightOffset: 1.5f);
+        }
+
+        /// <summary>
+        /// Returns the transform that actually moves around the world for a spawned host. The
+        /// golem prefab has a stationary root that holds patrol points and a child that carries
+        /// the Animator/NavMeshAgent — the icon must follow that moving child or it will appear
+        /// pinned to the spawn point. For other entities the host root already moves.
+        /// </summary>
+        private static Transform ResolveTrackingTransform(GameObject host, MinimapIconType type)
+        {
+            if (host == null) return null;
+
+            if (type == MinimapIconType.Golem)
+            {
+                var navAgent = host.GetComponentInChildren<NavMeshAgent>(includeInactive: true);
+                if (navAgent != null) return navAgent.transform;
+            }
+
+            return host.transform;
         }
 
         private void BindTeams()
@@ -100,15 +120,17 @@ namespace TreasureHunt.Minimap
             if (!_registered.Add(id)) return;
 
             var sprite = _factory.GetSprite(type, tint);
+            var trackedTransform = ResolveTrackingTransform(host, type);
+
             // Icons live at scene root so parent scale/rotation doesn't fight the screen-stable
             // size compensation in MinimapIcon. Lifetime is managed by the icon itself when its
             // tracked target is destroyed.
             var holder = new GameObject($"MinimapIcon_{type}");
-            holder.transform.position = host.transform.position;
+            holder.transform.position = trackedTransform.position;
 
             var icon = holder.AddComponent<MinimapIcon>();
             icon.Configure(
-                target: host.transform,
+                target: trackedTransform,
                 sprite: sprite,
                 modeService: _modeService,
                 cameraProvider: _cameraProvider,
